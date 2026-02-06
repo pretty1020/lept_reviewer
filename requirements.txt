@@ -1,0 +1,19 @@
+# LEPT AI Reviewer - Dependencies
+# Streamlit Cloud Deployment
+
+# Core
+streamlit>=1.32.0
+
+# Database
+snowflake-connector-python>=3.6.0
+
+# AI
+openai>=1.12.0
+
+# Document Processing
+PyPDF2>=3.0.0
+python-docx>=1.1.0
+
+# Utilities
+requests>=2.31.0
+Pillow>=10.0.0
