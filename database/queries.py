@@ -330,13 +330,27 @@ def get_all_logs(limit: int = 50) -> List[Dict]:
 
 # ============== USER DOCUMENT QUERIES ==============
 
-def save_user_document(email: str, filename: str, file_type: str, storage_path: str, text_hash: str = None) -> Optional[int]:
-    """Save a user-uploaded document."""
-    query = """
-    INSERT INTO USER_DOCUMENTS (EMAIL, FILE_NAME, FILE_TYPE, STORAGE_PATH, TEXT_HASH)
-    VALUES (%s, %s, %s, %s, %s)
-    """
-    result = execute_write(query, (email, filename, file_type, storage_path, text_hash))
+def save_user_document(email: str, filename: str, file_type: str, storage_path: str, 
+                       text_hash: str = None, extracted_text: str = None) -> Optional[int]:
+    """Save a user-uploaded document with extracted text for AI use."""
+    result = False
+    
+    # Try with EXTRACTED_TEXT column first (if column exists in table)
+    if extracted_text:
+        query_with_text = """
+        INSERT INTO USER_DOCUMENTS (EMAIL, FILE_NAME, FILE_TYPE, STORAGE_PATH, TEXT_HASH, EXTRACTED_TEXT)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        """
+        result = execute_write(query_with_text, (email, filename, file_type, storage_path, text_hash, extracted_text))
+    
+    # Fallback: try without EXTRACTED_TEXT column
+    if not result:
+        query_basic = """
+        INSERT INTO USER_DOCUMENTS (EMAIL, FILE_NAME, FILE_TYPE, STORAGE_PATH, TEXT_HASH)
+        VALUES (%s, %s, %s, %s, %s)
+        """
+        result = execute_write(query_basic, (email, filename, file_type, storage_path, text_hash))
+    
     if result:
         invalidate_user_docs_cache(email)
         id_query = "SELECT MAX(DOC_ID) FROM USER_DOCUMENTS WHERE EMAIL = %s AND FILE_NAME = %s LIMIT 1"

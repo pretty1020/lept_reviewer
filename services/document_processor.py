@@ -1,5 +1,6 @@
 """
 LEPT AI Reviewer - Document Processing Service
+Enhanced to handle various file formats and sizes
 """
 
 import io
@@ -11,7 +12,7 @@ import streamlit as st
 
 def extract_text_from_pdf(file_bytes: bytes) -> Tuple[bool, str]:
     """
-    Extract text from a PDF file.
+    Extract text from a PDF file using multiple methods.
     
     Args:
         file_bytes: PDF file as bytes
@@ -19,38 +20,86 @@ def extract_text_from_pdf(file_bytes: bytes) -> Tuple[bool, str]:
     Returns:
         Tuple of (success, extracted_text_or_error)
     """
+    text_parts = []
+    
+    # Method 1: Try PyPDF2
     try:
         from PyPDF2 import PdfReader
         
         pdf_file = io.BytesIO(file_bytes)
         reader = PdfReader(pdf_file)
         
-        text_parts = []
         for page in reader.pages:
-            page_text = page.extract_text()
-            if page_text:
-                text_parts.append(page_text)
+            try:
+                page_text = page.extract_text()
+                if page_text and page_text.strip():
+                    text_parts.append(page_text)
+            except Exception:
+                continue
         
-        if not text_parts:
-            return False, "Could not extract text from the PDF. The file may contain only images."
-        
-        full_text = "\n\n".join(text_parts)
-        
-        # Clean up the text
-        full_text = clean_extracted_text(full_text)
-        
-        if len(full_text.strip()) < 50:
-            return False, "Extracted text is too short. Please upload a document with more content."
-        
-        return True, full_text
-        
+    except ImportError:
+        pass
     except Exception as e:
-        return False, f"Error reading PDF: {str(e)}"
+        print(f"PyPDF2 extraction error: {e}")
+    
+    # Method 2: Try pdfplumber if PyPDF2 didn't get much text
+    if len("".join(text_parts)) < 100:
+        try:
+            import pdfplumber
+            
+            pdf_file = io.BytesIO(file_bytes)
+            with pdfplumber.open(pdf_file) as pdf:
+                for page in pdf.pages:
+                    try:
+                        page_text = page.extract_text()
+                        if page_text and page_text.strip():
+                            text_parts.append(page_text)
+                    except Exception:
+                        continue
+        except ImportError:
+            pass
+        except Exception as e:
+            print(f"pdfplumber extraction error: {e}")
+    
+    # Method 3: Try pypdf if others failed
+    if len("".join(text_parts)) < 100:
+        try:
+            from pypdf import PdfReader as PyPdfReader
+            
+            pdf_file = io.BytesIO(file_bytes)
+            reader = PyPdfReader(pdf_file)
+            
+            for page in reader.pages:
+                try:
+                    page_text = page.extract_text()
+                    if page_text and page_text.strip():
+                        text_parts.append(page_text)
+                except Exception:
+                    continue
+        except ImportError:
+            pass
+        except Exception as e:
+            print(f"pypdf extraction error: {e}")
+    
+    if not text_parts:
+        # Return success with a placeholder - allow upload even without text
+        return True, "[PDF document uploaded - text extraction limited. The document can still be used for reference.]"
+    
+    full_text = "\n\n".join(text_parts)
+    
+    # Clean up the text
+    full_text = clean_extracted_text(full_text)
+    
+    # Don't reject based on text length - allow any content
+    if not full_text.strip():
+        return True, "[PDF document uploaded - contains minimal extractable text.]"
+    
+    return True, full_text
 
 
 def extract_text_from_docx(file_bytes: bytes) -> Tuple[bool, str]:
     """
-    Extract text from a DOCX file.
+    Extract text from a DOCX file with multiple fallback methods.
     
     Args:
         file_bytes: DOCX file as bytes
@@ -58,39 +107,79 @@ def extract_text_from_docx(file_bytes: bytes) -> Tuple[bool, str]:
     Returns:
         Tuple of (success, extracted_text_or_error)
     """
+    text_parts = []
+    
+    # Method 1: Try python-docx
     try:
         from docx import Document
         
         docx_file = io.BytesIO(file_bytes)
         doc = Document(docx_file)
         
-        text_parts = []
+        # Extract from paragraphs
         for paragraph in doc.paragraphs:
-            if paragraph.text.strip():
-                text_parts.append(paragraph.text)
+            text = paragraph.text
+            if text and text.strip():
+                text_parts.append(text)
         
-        # Also extract text from tables
+        # Extract text from tables
         for table in doc.tables:
             for row in table.rows:
+                row_texts = []
                 for cell in row.cells:
-                    if cell.text.strip():
-                        text_parts.append(cell.text)
+                    if cell.text and cell.text.strip():
+                        row_texts.append(cell.text.strip())
+                if row_texts:
+                    text_parts.append(" | ".join(row_texts))
         
-        if not text_parts:
-            return False, "Could not extract text from the DOCX file."
-        
-        full_text = "\n\n".join(text_parts)
-        
-        # Clean up the text
-        full_text = clean_extracted_text(full_text)
-        
-        if len(full_text.strip()) < 50:
-            return False, "Extracted text is too short. Please upload a document with more content."
-        
-        return True, full_text
-        
+        # Extract from headers/footers
+        for section in doc.sections:
+            try:
+                header = section.header
+                if header:
+                    for para in header.paragraphs:
+                        if para.text and para.text.strip():
+                            text_parts.append(para.text)
+            except Exception:
+                pass
+                
+    except ImportError:
+        return False, "python-docx library not installed. Please contact administrator."
     except Exception as e:
-        return False, f"Error reading DOCX: {str(e)}"
+        print(f"DOCX extraction error: {e}")
+        # Try alternative method
+        try:
+            import zipfile
+            import xml.etree.ElementTree as ET
+            
+            docx_file = io.BytesIO(file_bytes)
+            with zipfile.ZipFile(docx_file) as z:
+                # Read the main document
+                if 'word/document.xml' in z.namelist():
+                    xml_content = z.read('word/document.xml')
+                    tree = ET.fromstring(xml_content)
+                    
+                    # Extract all text
+                    for elem in tree.iter():
+                        if elem.text and elem.text.strip():
+                            text_parts.append(elem.text)
+        except Exception as e2:
+            print(f"Alternative DOCX extraction error: {e2}")
+    
+    if not text_parts:
+        # Return success with placeholder - allow upload even without extracted text
+        return True, "[DOCX document uploaded - text extraction limited. The document can still be used for reference.]"
+    
+    full_text = "\n\n".join(text_parts)
+    
+    # Clean up the text
+    full_text = clean_extracted_text(full_text)
+    
+    # Don't reject based on text length - allow any content
+    if not full_text.strip():
+        return True, "[DOCX document uploaded - contains minimal extractable text.]"
+    
+    return True, full_text
 
 
 def extract_text_from_file(uploaded_file) -> Tuple[bool, str]:

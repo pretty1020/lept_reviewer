@@ -367,7 +367,11 @@ def render_admin_docs_tab():
                         invalidate_admin_docs_cache()
                         log_admin_action("admin", ACTION_UPLOAD_ADMIN_DOC, f"Uploaded {uploaded_file.name} (Category: {category})")
                         st.session_state.admin_docs_loaded = None  # Force reload
-                        st.success(f"✅ Uploaded! Text extracted: {'Yes' if success else 'No'}")
+                        text_len = len(extracted_text) if extracted_text else 0
+                        if text_len > 100:
+                            st.success(f"✅ Uploaded! Extracted {text_len:,} characters for AI use.")
+                        else:
+                            st.success("✅ Uploaded! (Limited text extraction - file can still be downloaded)")
                         st.rerun()
                     else:
                         st.error("Failed to save document.")

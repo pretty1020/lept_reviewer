@@ -74,15 +74,42 @@ def cached_get_admin_documents() -> List[Dict]:
 
 @st.cache_data(ttl=120, show_spinner=False)
 def cached_get_user_documents(email: str) -> List[Dict]:
-    """Get user documents - cached for 2 minutes."""
-    query = """
-    SELECT DOC_ID, EMAIL, FILE_NAME, FILE_TYPE, STORAGE_PATH, TEXT_STAGE_PATH, UPLOADED_AT
+    """Get user documents with extracted text - cached for 2 minutes."""
+    # Try with EXTRACTED_TEXT column first
+    query_with_text = """
+    SELECT DOC_ID, EMAIL, FILE_NAME, FILE_TYPE, STORAGE_PATH, TEXT_STAGE_PATH, UPLOADED_AT, EXTRACTED_TEXT
     FROM USER_DOCUMENTS 
     WHERE EMAIL = %s AND IS_DELETED = FALSE
     ORDER BY UPLOADED_AT DESC
     LIMIT 20
     """
-    result = execute_query(query, (email,))
+    result = execute_query(query_with_text, (email,))
+    
+    # Fallback if EXTRACTED_TEXT column doesn't exist
+    if result is None:
+        query_basic = """
+        SELECT DOC_ID, EMAIL, FILE_NAME, FILE_TYPE, STORAGE_PATH, TEXT_STAGE_PATH, UPLOADED_AT
+        FROM USER_DOCUMENTS 
+        WHERE EMAIL = %s AND IS_DELETED = FALSE
+        ORDER BY UPLOADED_AT DESC
+        LIMIT 20
+        """
+        result = execute_query(query_basic, (email,))
+        docs = []
+        if result:
+            for row in result:
+                docs.append({
+                    "doc_id": row[0],
+                    "email": row[1],
+                    "filename": row[2],
+                    "file_type": row[3],
+                    "storage_path": row[4],
+                    "text_stage_path": row[5],
+                    "created_at": row[6],
+                    "extracted_text": None
+                })
+        return docs
+    
     docs = []
     if result:
         for row in result:
@@ -93,7 +120,8 @@ def cached_get_user_documents(email: str) -> List[Dict]:
                 "file_type": row[3],
                 "storage_path": row[4],
                 "text_stage_path": row[5],
-                "created_at": row[6]
+                "created_at": row[6],
+                "extracted_text": row[7] if len(row) > 7 else None
             })
     return docs
 

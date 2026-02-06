@@ -196,27 +196,30 @@ def render_user_documents_tab(email: str):
                         from database.queries import save_user_document
                         from database.cached_queries import invalidate_user_docs_cache
                         
-                        success, result = extract_text_from_file(uploaded_file)
+                        success, extracted_text = extract_text_from_file(uploaded_file)
                     
-                    if success:
-                        file_type = uploaded_file.name.split('.')[-1].lower()
-                        storage_path = f"@STAGE_USER_DOCS/{email}/{uploaded_file.name}"
-                        
-                        doc_id = save_user_document(
-                            email=email,
-                            filename=uploaded_file.name,
-                            file_type=file_type,
-                            storage_path=storage_path
-                        )
-                        
-                        if doc_id:
-                            invalidate_user_docs_cache(email)
-                            st.success("✅ Document uploaded!")
-                            st.rerun()
+                    # Always try to save the document, even if text extraction had issues
+                    file_type = uploaded_file.name.split('.')[-1].lower()
+                    storage_path = f"@STAGE_USER_DOCS/{email}/{uploaded_file.name}"
+                    
+                    # Save with extracted text (may be placeholder text if extraction failed)
+                    doc_id = save_user_document(
+                        email=email,
+                        filename=uploaded_file.name,
+                        file_type=file_type,
+                        storage_path=storage_path,
+                        extracted_text=extracted_text if success else None
+                    )
+                    
+                    if doc_id:
+                        invalidate_user_docs_cache(email)
+                        if success and not extracted_text.startswith("["):
+                            st.success(f"✅ Document uploaded! Extracted {len(extracted_text)} characters of text.")
                         else:
-                            st.error("Failed to save. Try again.")
+                            st.success("✅ Document uploaded! (Limited text extraction)")
+                        st.rerun()
                     else:
-                        st.error(f"❌ {result}")
+                        st.error("Failed to save document. Please try again.")
     
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown(f"<h3 style='color: {COLORS['text']}; margin: 1rem 0;'>My Uploaded Documents</h3>", unsafe_allow_html=True)

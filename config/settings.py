@@ -139,7 +139,7 @@ ACTION_DELETE_ADMIN_DOC = "DELETE_ADMIN_DOC"
 
 # File Upload Settings
 ALLOWED_EXTENSIONS = [".pdf", ".docx"]
-MAX_FILE_SIZE_MB = 10
+MAX_FILE_SIZE_MB = 200  # Allow large files up to 200MB
 
 # Warning Messages
 EMAIL_SHARING_WARNING = "⚠️ **DO NOT share your email address. Sharing may result in access issues or blocking.**"
