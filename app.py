@@ -202,8 +202,8 @@ def render_header_nav():
         
         nav_items = [
             ("🏠", "Home", "home"),
-            ("📄", "Upload", "upload"),
             ("🧠", "Practice", "practice"),
+            ("📄", "Upload", "upload"),
             ("💳", "Upgrade", "upgrade"),
         ]
         
