@@ -1,14 +1,12 @@
 """
 LEPT AI Reviewer - Home Page
-Modern Techy Theme - Updated with 2026 PRC LEPT Guidelines
+OPTIMIZED: Session state caching, no DB queries
 """
 
 import streamlit as st
 
 from components.auth import get_current_user
-from components.alerts import show_email_warning, show_payment_pending_banner
-from services.usage_tracker import get_user_status
-from services.payment_handler import get_user_payment_status
+from services.usage_tracker import get_cached_user_status, get_user_status
 from config.settings import (
     COLORS, APP_NAME, APP_DESCRIPTION, PLAN_FREE, PLAN_PRO, PLAN_PREMIUM,
     EDUCATION_LEVELS, ELEMENTARY_SPECIALIZATIONS, SECONDARY_SPECIALIZATIONS,
@@ -17,15 +15,18 @@ from config.settings import (
 
 
 def render_home_page():
-    """Render the home page with modern techy navigation cards."""
+    """Render the home page - OPTIMIZED."""
     user = get_current_user()
     
     if not user:
         st.error("Please log in to continue.")
         return
     
-    # User stats
-    status = get_user_status(user)
+    # Use cached status - NO DB query
+    status = get_cached_user_status()
+    if not status:
+        status = get_user_status(user)
+        st.session_state.user_status = status
     is_free_user = status["plan"] == PLAN_FREE
     
     # Header with gradient
@@ -47,9 +48,19 @@ def render_home_page():
     </div>
     """, unsafe_allow_html=True)
     
-    # Check for pending payments
-    payment_status = get_user_payment_status(user.get("email"))
-    if payment_status.get("has_pending"):
+    # Payment pending check - lazy load
+    if "payment_status_checked" not in st.session_state:
+        st.session_state.payment_status_checked = False
+    
+    if not st.session_state.payment_status_checked:
+        # Only check on first load, not every rerun
+        from services.payment_handler import get_user_payment_status
+        payment_status = get_user_payment_status(user.get("email"))
+        st.session_state.has_pending_payment = payment_status.get("has_pending", False)
+        st.session_state.payment_status_checked = True
+    
+    if st.session_state.get("has_pending_payment", False):
+        from components.alerts import show_payment_pending_banner
         show_payment_pending_banner()
     
     st.markdown(f"<h3 style='color: {COLORS['text']}; margin-bottom: 1rem;'>📊 Your Dashboard</h3>", unsafe_allow_html=True)
@@ -191,7 +202,7 @@ def render_home_page():
                         filter: drop-shadow(0 0 15px {COLORS['primary']});">🧠</div>
             <h3 style="color: {COLORS['text']}; margin: 0 0 0.5rem 0; font-size: 1.2rem;">Practice Exam</h3>
             <p style="color: {COLORS['text_muted']}; margin: 0; font-size: 0.9rem;">
-                {'FREE: 10 preset questions (uses quota) | PRO/PREMIUM: AI-generated questions!' if is_free_user else 'AI-generated LEPT questions from your uploaded reviewers!'}
+                {'FREE: 15 preset questions (uses quota) | PRO/PREMIUM: AI-generated questions!' if is_free_user else 'AI-generated LEPT questions from your uploaded reviewers!'}
             </p>
         </div>
         """, unsafe_allow_html=True)

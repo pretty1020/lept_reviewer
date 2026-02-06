@@ -192,10 +192,9 @@ def get_plan_details(plan_type: str) -> dict:
             "name": "FREE",
             "price": "Free",
             "price_value": 0,
-            "questions": "10 questions",
+            "questions": "15 questions",
             "features": [
-                "10 preset LEPT questions",
-                "2026 PRC competencies",
+                "15 preset LEPT questions",
                 "Elementary & Secondary",
                 "GenEd, ProfEd, Specialization"
             ],

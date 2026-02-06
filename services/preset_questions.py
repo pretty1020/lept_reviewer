@@ -100,6 +100,50 @@ GENERAL_EDUCATION_QUESTIONS = {
             },
             "correct_answer": "C",
             "explanation": "Photosynthesis is the process where plants use sunlight, water, and carbon dioxide to produce glucose and oxygen."
+        },
+        {
+            "question": "What is the largest organ of the human body?",
+            "options": {
+                "A": "Heart",
+                "B": "Liver",
+                "C": "Skin",
+                "D": "Brain"
+            },
+            "correct_answer": "C",
+            "explanation": "The skin is the largest organ of the human body, covering approximately 20 square feet in adults."
+        },
+        {
+            "question": "What is the capital city of the Philippines?",
+            "options": {
+                "A": "Cebu City",
+                "B": "Davao City",
+                "C": "Manila",
+                "D": "Quezon City"
+            },
+            "correct_answer": "C",
+            "explanation": "Manila is the capital city of the Philippines, though Quezon City is the most populous city in Metro Manila."
+        },
+        {
+            "question": "What is the Filipino word for 'thank you'?",
+            "options": {
+                "A": "Paalam",
+                "B": "Salamat",
+                "C": "Kumusta",
+                "D": "Maganda"
+            },
+            "correct_answer": "B",
+            "explanation": "Salamat is the Filipino word for 'thank you'."
+        },
+        {
+            "question": "How many sides does a hexagon have?",
+            "options": {
+                "A": "5",
+                "B": "6",
+                "C": "7",
+                "D": "8"
+            },
+            "correct_answer": "B",
+            "explanation": "A hexagon has 6 sides. The prefix 'hexa-' means six."
         }
     ],
     "medium": [
@@ -168,6 +212,50 @@ GENERAL_EDUCATION_QUESTIONS = {
             },
             "correct_answer": "C",
             "explanation": "3(x - 2) = 12; x - 2 = 4; x = 6"
+        },
+        {
+            "question": "What is the main function of the respiratory system?",
+            "options": {
+                "A": "To digest food",
+                "B": "To exchange oxygen and carbon dioxide",
+                "C": "To pump blood",
+                "D": "To filter waste"
+            },
+            "correct_answer": "B",
+            "explanation": "The respiratory system's main function is to facilitate gas exchange - taking in oxygen and expelling carbon dioxide."
+        },
+        {
+            "question": "Who wrote the Philippine National Anthem 'Lupang Hinirang'?",
+            "options": {
+                "A": "Jose Palma",
+                "B": "Julian Felipe",
+                "C": "Both A and B",
+                "D": "Andres Bonifacio"
+            },
+            "correct_answer": "C",
+            "explanation": "Julian Felipe composed the music, while Jose Palma wrote the Spanish lyrics which were later translated to Filipino."
+        },
+        {
+            "question": "What fraction is equivalent to 0.75?",
+            "options": {
+                "A": "1/2",
+                "B": "2/3",
+                "C": "3/4",
+                "D": "4/5"
+            },
+            "correct_answer": "C",
+            "explanation": "0.75 = 75/100 = 3/4 when simplified."
+        },
+        {
+            "question": "Ano ang kasingkahulugan ng salitang 'maganda'?",
+            "options": {
+                "A": "Pangit",
+                "B": "Marilag",
+                "C": "Mabaho",
+                "D": "Maliit"
+            },
+            "correct_answer": "B",
+            "explanation": "Ang 'marilag' ay kasingkahulugan ng 'maganda' na nangangahulugang may kagandahan."
         }
     ],
     "hard": [
@@ -225,6 +313,39 @@ GENERAL_EDUCATION_QUESTIONS = {
             },
             "correct_answer": "B",
             "explanation": "Ang pagtutulad (simile) ay gumagamit ng 'parang', 'tulad ng', o 'gaya ng' upang ihambing ang dalawang bagay."
+        },
+        {
+            "question": "What is the speed of light in a vacuum?",
+            "options": {
+                "A": "3 × 10⁶ m/s",
+                "B": "3 × 10⁸ m/s",
+                "C": "3 × 10¹⁰ m/s",
+                "D": "3 × 10⁴ m/s"
+            },
+            "correct_answer": "B",
+            "explanation": "The speed of light in a vacuum is approximately 3 × 10⁸ meters per second (about 300,000 km/s)."
+        },
+        {
+            "question": "What is the significance of EDSA Revolution in Philippine history?",
+            "options": {
+                "A": "It ended Spanish colonization",
+                "B": "It peacefully overthrew the Marcos dictatorship",
+                "C": "It declared Philippine independence",
+                "D": "It ended Japanese occupation"
+            },
+            "correct_answer": "B",
+            "explanation": "The 1986 EDSA People Power Revolution peacefully ended the 21-year rule of Ferdinand Marcos through non-violent mass protests."
+        },
+        {
+            "question": "In the expression log₁₀(1000), what is the value?",
+            "options": {
+                "A": "2",
+                "B": "3",
+                "C": "4",
+                "D": "10"
+            },
+            "correct_answer": "B",
+            "explanation": "log₁₀(1000) = 3 because 10³ = 1000."
         }
     ]
 }
@@ -322,6 +443,50 @@ PROFESSIONAL_EDUCATION_QUESTIONS = {
             },
             "correct_answer": "B",
             "explanation": "Lesson planning guides instruction and ensures that learning objectives are systematically achieved."
+        },
+        {
+            "question": "What is the role of a teacher as a facilitator?",
+            "options": {
+                "A": "To lecture and give all the answers",
+                "B": "To guide students in discovering knowledge themselves",
+                "C": "To punish students who make mistakes",
+                "D": "To grade papers only"
+            },
+            "correct_answer": "B",
+            "explanation": "As a facilitator, the teacher guides and supports students in constructing their own understanding."
+        },
+        {
+            "question": "What is formative assessment?",
+            "options": {
+                "A": "Assessment at the end of a semester",
+                "B": "Assessment during instruction to monitor learning",
+                "C": "Assessment before instruction begins",
+                "D": "Assessment for college admission"
+            },
+            "correct_answer": "B",
+            "explanation": "Formative assessment is ongoing assessment during instruction that helps teachers monitor student progress and adjust teaching."
+        },
+        {
+            "question": "What does DepEd stand for?",
+            "options": {
+                "A": "Department of Educational Development",
+                "B": "Department of Education",
+                "C": "Division of Education",
+                "D": "Department of Educational Design"
+            },
+            "correct_answer": "B",
+            "explanation": "DepEd stands for Department of Education, the executive department of the Philippine government responsible for education."
+        },
+        {
+            "question": "What is the main goal of inclusive education?",
+            "options": {
+                "A": "To separate students with disabilities",
+                "B": "To provide equal education opportunities for all learners",
+                "C": "To focus only on gifted students",
+                "D": "To exclude difficult students"
+            },
+            "correct_answer": "B",
+            "explanation": "Inclusive education aims to provide equal educational opportunities for all learners regardless of abilities or backgrounds."
         }
     ],
     "medium": [
@@ -412,6 +577,50 @@ PROFESSIONAL_EDUCATION_QUESTIONS = {
             },
             "correct_answer": "B",
             "explanation": "Peer tutoring involves students helping teach and support each other's learning."
+        },
+        {
+            "question": "What is cooperative learning?",
+            "options": {
+                "A": "Students work individually on tasks",
+                "B": "Students work in groups to achieve common goals",
+                "C": "Teacher lectures while students listen",
+                "D": "Competition among students"
+            },
+            "correct_answer": "B",
+            "explanation": "Cooperative learning involves students working together in small groups to accomplish shared learning goals."
+        },
+        {
+            "question": "What is the purpose of diagnostic assessment?",
+            "options": {
+                "A": "To grade students at the end of the year",
+                "B": "To identify students' prior knowledge and learning gaps",
+                "C": "To punish poor performers",
+                "D": "To rank students"
+            },
+            "correct_answer": "B",
+            "explanation": "Diagnostic assessment is conducted before instruction to determine students' existing knowledge, skills, and learning needs."
+        },
+        {
+            "question": "Which Republic Act is known as the 'Enhanced Basic Education Act of 2013'?",
+            "options": {
+                "A": "RA 7836",
+                "B": "RA 9155",
+                "C": "RA 10533",
+                "D": "RA 4670"
+            },
+            "correct_answer": "C",
+            "explanation": "RA 10533, the Enhanced Basic Education Act of 2013, mandates the K to 12 Basic Education Program."
+        },
+        {
+            "question": "What is authentic assessment?",
+            "options": {
+                "A": "Multiple choice tests only",
+                "B": "Assessment that measures real-world application of knowledge",
+                "C": "Memorization tests",
+                "D": "Standardized testing"
+            },
+            "correct_answer": "B",
+            "explanation": "Authentic assessment evaluates students' abilities to apply knowledge and skills in real-world situations."
         }
     ],
     "hard": [
@@ -480,6 +689,50 @@ PROFESSIONAL_EDUCATION_QUESTIONS = {
             },
             "correct_answer": "C",
             "explanation": "Kohlberg proposed 6 stages of moral development grouped into 3 levels: pre-conventional, conventional, and post-conventional."
+        },
+        {
+            "question": "What is the Code of Ethics for Professional Teachers in the Philippines?",
+            "options": {
+                "A": "RA 7836",
+                "B": "RA 4670",
+                "C": "RA 9155",
+                "D": "Board Resolution No. 435"
+            },
+            "correct_answer": "A",
+            "explanation": "RA 7836, the Philippine Teachers Professionalization Act of 1994, includes the Code of Ethics for Professional Teachers."
+        },
+        {
+            "question": "What is Bandura's Social Learning Theory primarily about?",
+            "options": {
+                "A": "Learning through operant conditioning",
+                "B": "Learning through observation and modeling",
+                "C": "Learning through classical conditioning",
+                "D": "Learning through punishment only"
+            },
+            "correct_answer": "B",
+            "explanation": "Bandura's Social Learning Theory emphasizes that people learn by observing and imitating others' behaviors."
+        },
+        {
+            "question": "What is the theory of Meaningful Learning associated with David Ausubel?",
+            "options": {
+                "A": "Learning through rote memorization",
+                "B": "Connecting new information to existing knowledge structures",
+                "C": "Learning through trial and error",
+                "D": "Learning only through direct experience"
+            },
+            "correct_answer": "B",
+            "explanation": "Ausubel's Meaningful Learning Theory states that new learning is most effective when connected to relevant prior knowledge."
+        },
+        {
+            "question": "What are the domains in PPST?",
+            "options": {
+                "A": "5 domains",
+                "B": "6 domains",
+                "C": "7 domains",
+                "D": "8 domains"
+            },
+            "correct_answer": "C",
+            "explanation": "PPST has 7 domains: Content Knowledge, Learning Environment, Diversity of Learners, Curriculum and Planning, Assessment and Reporting, Community Linkages, and Personal Growth."
         }
     ]
 }

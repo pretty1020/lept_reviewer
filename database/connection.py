@@ -1,15 +1,23 @@
 """
 LEPT AI Reviewer - Snowflake Database Connection
+OPTIMIZED: Single cached connection, reused across all queries
 """
 
 import streamlit as st
 import snowflake.connector
-from contextlib import contextmanager
+from typing import Optional, List, Any, Tuple
+import time
+
+# Debug counter for query monitoring (remove in production)
+if "db_query_count" not in st.session_state:
+    st.session_state.db_query_count = 0
 
 
+@st.cache_resource
 def get_snowflake_connection():
     """
-    Create and return a Snowflake connection using Streamlit secrets.
+    Create and cache a single Snowflake connection.
+    This connection is reused across ALL reruns and users.
     """
     try:
         conn = snowflake.connector.connect(
@@ -19,7 +27,9 @@ def get_snowflake_connection():
             role=st.secrets["snowflake"].get("role", "ACCOUNTADMIN"),
             database=st.secrets["snowflake"]["database"],
             schema=st.secrets["snowflake"]["schema"],
-            warehouse=st.secrets["snowflake"]["warehouse"]
+            warehouse=st.secrets["snowflake"]["warehouse"],
+            client_session_keep_alive=True,  # Keep connection alive
+            network_timeout=30,
         )
         return conn
     except Exception as e:
@@ -27,36 +37,32 @@ def get_snowflake_connection():
         return None
 
 
-@contextmanager
-def get_db_cursor():
-    """
-    Context manager for database operations.
-    Automatically handles connection and cursor cleanup.
-    """
-    conn = None
-    cursor = None
-    try:
-        conn = get_snowflake_connection()
-        if conn:
-            cursor = conn.cursor()
-            yield cursor
-            conn.commit()
-        else:
-            yield None
-    except Exception as e:
-        if conn:
-            conn.rollback()
-        raise e
-    finally:
-        if cursor:
-            cursor.close()
-        if conn:
-            conn.close()
+def get_cursor():
+    """Get a cursor from the cached connection."""
+    conn = get_snowflake_connection()
+    if conn:
+        try:
+            # Test if connection is still valid
+            if not conn.is_closed():
+                return conn.cursor()
+            else:
+                # Connection closed, clear cache and reconnect
+                st.cache_resource.clear()
+                conn = get_snowflake_connection()
+                if conn:
+                    return conn.cursor()
+        except Exception:
+            # Connection error, clear cache and reconnect
+            st.cache_resource.clear()
+            conn = get_snowflake_connection()
+            if conn:
+                return conn.cursor()
+    return None
 
 
-def execute_query(query: str, params: tuple = None, fetch: bool = True):
+def execute_query(query: str, params: tuple = None, fetch: bool = True) -> Optional[List]:
     """
-    Execute a query and optionally fetch results.
+    Execute a query using the cached connection.
     
     Args:
         query: SQL query string
@@ -64,65 +70,91 @@ def execute_query(query: str, params: tuple = None, fetch: bool = True):
         fetch: Whether to fetch results (default True)
     
     Returns:
-        List of results if fetch=True, otherwise None
+        List of results if fetch=True, True if successful write, None on error
     """
-    with get_db_cursor() as cursor:
-        if cursor is None:
-            return None
-        
-        try:
-            if params:
-                cursor.execute(query, params)
-            else:
-                cursor.execute(query)
-            
-            if fetch:
-                return cursor.fetchall()
-            return True
-        except Exception as e:
-            st.error(f"Query execution failed: {str(e)}")
-            return None
-
-
-def execute_many(query: str, params_list: list):
-    """
-    Execute a query with multiple parameter sets.
+    # Increment debug counter
+    st.session_state.db_query_count += 1
     
-    Args:
-        query: SQL query string
-        params_list: List of parameter tuples
-    
-    Returns:
-        True if successful, None otherwise
-    """
-    with get_db_cursor() as cursor:
-        if cursor is None:
-            return None
-        
-        try:
-            cursor.executemany(query, params_list)
-            return True
-        except Exception as e:
-            st.error(f"Batch execution failed: {str(e)}")
-            return None
-
-
-def test_connection():
-    """
-    Test the Snowflake connection.
-    
-    Returns:
-        True if connection successful, False otherwise
-    """
+    cursor = None
     try:
-        conn = get_snowflake_connection()
-        if conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT CURRENT_VERSION()")
-            result = cursor.fetchone()
-            cursor.close()
-            conn.close()
-            return True, result[0]
-        return False, "Connection failed"
+        cursor = get_cursor()
+        if cursor is None:
+            return None
+        
+        start_time = time.time()
+        
+        if params:
+            cursor.execute(query, params)
+        else:
+            cursor.execute(query)
+        
+        if fetch:
+            result = cursor.fetchall()
+        else:
+            # Commit for write operations
+            get_snowflake_connection().commit()
+            result = True
+        
+        # Debug timing (remove in production)
+        elapsed = (time.time() - start_time) * 1000
+        if elapsed > 500:  # Log slow queries
+            print(f"SLOW QUERY ({elapsed:.0f}ms): {query[:100]}...")
+        
+        return result
+        
+    except snowflake.connector.errors.ProgrammingError as e:
+        if "Authentication token has expired" in str(e) or "session" in str(e).lower():
+            # Session expired, clear cache and retry once
+            st.cache_resource.clear()
+            try:
+                cursor = get_cursor()
+                if cursor:
+                    if params:
+                        cursor.execute(query, params)
+                    else:
+                        cursor.execute(query)
+                    if fetch:
+                        return cursor.fetchall()
+                    else:
+                        get_snowflake_connection().commit()
+                        return True
+            except Exception:
+                pass
+        return None
+    except Exception as e:
+        # Don't show error in UI for every query failure
+        print(f"Query error: {str(e)}")
+        return None
+    finally:
+        if cursor:
+            try:
+                cursor.close()
+            except Exception:
+                pass
+
+
+def execute_write(query: str, params: tuple = None) -> bool:
+    """Execute a write query (INSERT, UPDATE, DELETE)."""
+    result = execute_query(query, params, fetch=False)
+    return result is True
+
+
+def test_connection() -> Tuple[bool, str]:
+    """Test the Snowflake connection."""
+    try:
+        result = execute_query("SELECT CURRENT_VERSION()")
+        if result and len(result) > 0:
+            return True, result[0][0]
+        return False, "Connection test failed"
     except Exception as e:
         return False, str(e)
+
+
+def get_query_count() -> int:
+    """Get the number of queries executed in this session (for debugging)."""
+    return st.session_state.get("db_query_count", 0)
+
+
+def reset_query_count():
+    """Reset the query counter (for debugging)."""
+    st.session_state.db_query_count = 0

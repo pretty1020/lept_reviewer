@@ -1,6 +1,6 @@
 """
 LEPT AI Reviewer - Usage Tracking Service
-Updated for email-based user identification
+OPTIMIZED: Session state caching, minimal DB queries
 """
 
 from datetime import datetime
@@ -13,45 +13,45 @@ from config.settings import (
     FREE_QUESTION_LIMIT, PRO_QUESTION_BONUS, PREMIUM_DURATION_DAYS
 )
 from database.queries import (
-    get_user_by_email, create_user, update_user_ip,
+    get_user_by_email, get_fresh_user_by_email, create_user, update_user_ip,
     decrement_user_questions, log_usage, check_premium_expiry,
     update_user_plan, increment_ip_usage, is_ip_blocked
 )
+from database.cached_queries import invalidate_user_cache
 from utils.ip_utils import get_client_ip
 
 
 def get_or_create_user(email: str) -> Tuple[Optional[dict], str]:
     """
     Get existing user or create new one based on email and IP.
-    
-    Args:
-        email: User's email address
-    
-    Returns:
-        Tuple of (user_dict, message)
+    OPTIMIZED: Uses cached queries and stores result in session state.
     """
     ip_address = get_client_ip()
     
-    # Check if IP is blocked
+    # Check if IP is blocked (cached)
     if is_ip_blocked(ip_address):
         return None, "This IP address has been blocked. Please contact support."
     
-    # Check for existing user with this email
+    # Check for existing user (cached)
     existing_user = get_user_by_email(email)
     
     if existing_user:
-        # Check if blocked
         if existing_user.get("is_blocked"):
             return None, "This account has been blocked. Please contact support."
         
-        # Update IP address
-        update_user_ip(email, ip_address)
+        # Update IP only if changed
+        if existing_user.get("ip_address") != ip_address:
+            update_user_ip(email, ip_address)
         
-        # Check premium expiry
+        # Check premium expiry only for premium users
         if existing_user.get("plan_type") == PLAN_PREMIUM:
-            check_premium_expiry(email)
-            # Refresh user data
-            existing_user = get_user_by_email(email)
+            if check_premium_expiry(email):
+                # Expiry happened, get fresh data
+                existing_user = get_fresh_user_by_email(email)
+        
+        # Store in session state for fast access
+        st.session_state.user = existing_user
+        st.session_state.user_status = get_user_status(existing_user)
         
         return existing_user, "Welcome back!"
     
@@ -59,7 +59,10 @@ def get_or_create_user(email: str) -> Tuple[Optional[dict], str]:
     created_email = create_user(email, ip_address)
     
     if created_email:
-        new_user = get_user_by_email(email)
+        new_user = get_fresh_user_by_email(email)
+        if new_user:
+            st.session_state.user = new_user
+            st.session_state.user_status = get_user_status(new_user)
         return new_user, "Account created successfully!"
     
     return None, "Failed to create account. Please try again."
@@ -68,12 +71,7 @@ def get_or_create_user(email: str) -> Tuple[Optional[dict], str]:
 def can_generate_questions(user: dict) -> Tuple[bool, str]:
     """
     Check if user can generate questions.
-    
-    Args:
-        user: User dictionary
-    
-    Returns:
-        Tuple of (can_generate, reason)
+    OPTIMIZED: No DB queries, uses provided user dict.
     """
     if not user:
         return False, "User not found"
@@ -92,7 +90,6 @@ def can_generate_questions(user: dict) -> Tuple[bool, str]:
             if expiry > datetime.now():
                 return True, "Premium access active"
             else:
-                # Premium expired
                 return False, "Your Premium subscription has expired. Please renew to continue."
     
     # Free and Pro users - check quota
@@ -111,20 +108,12 @@ def use_questions(email: str, ip_address: str, count: int = 1,
                   source_type: str = None, category: str = None, difficulty: str = None) -> bool:
     """
     Decrement question count for a user and log usage.
-    
-    Args:
-        email: User's email
-        ip_address: User's IP address
-        count: Number of questions used
-        source_type: Source of documents (USER_DOCS, ADMIN_DOCS, MIXED)
-        category: Exam category
-        difficulty: Difficulty level
-    
-    Returns:
-        True if successful
+    OPTIMIZED: Uses session state user data when possible.
     """
-    # Get fresh user data
-    user = get_user_by_email(email)
+    # Get user from session state if available, otherwise from DB
+    user = st.session_state.get("user")
+    if not user or user.get("email") != email:
+        user = get_user_by_email(email)
     
     if not user:
         return False
@@ -138,11 +127,20 @@ def use_questions(email: str, ip_address: str, count: int = 1,
     # Premium users don't decrement quota
     if user.get("plan_type") == PLAN_PREMIUM:
         expiry = user.get("premium_expiry")
-        if expiry and expiry > datetime.now():
-            return True
+        if expiry:
+            if isinstance(expiry, str):
+                expiry = datetime.fromisoformat(expiry)
+            if expiry > datetime.now():
+                return True
     
     # Decrement for Free and Pro users
     result = decrement_user_questions(email, count)
+    
+    # Update session state with new questions remaining
+    if result and "user" in st.session_state:
+        current_remaining = st.session_state.user.get("questions_remaining", 0)
+        st.session_state.user["questions_remaining"] = max(0, current_remaining - count)
+        st.session_state.user_status = get_user_status(st.session_state.user)
     
     return result
 
@@ -150,12 +148,7 @@ def use_questions(email: str, ip_address: str, count: int = 1,
 def get_user_status(user: dict) -> dict:
     """
     Get formatted user status for display.
-    
-    Args:
-        user: User dictionary
-    
-    Returns:
-        Status dictionary with display-ready values
+    OPTIMIZED: Pure function, no DB queries.
     """
     if not user:
         return {
@@ -203,11 +196,38 @@ def get_user_status(user: dict) -> dict:
     }
 
 
-def refresh_user_session():
-    """Refresh user data in session state."""
+def get_cached_user_status() -> Optional[dict]:
+    """
+    Get user status from session state cache.
+    OPTIMIZED: No DB query, returns cached data.
+    """
+    if "user_status" in st.session_state:
+        return st.session_state.user_status
+    
+    if "user" in st.session_state and st.session_state.user:
+        status = get_user_status(st.session_state.user)
+        st.session_state.user_status = status
+        return status
+    
+    return None
+
+
+def refresh_user_session(force: bool = False):
+    """
+    Refresh user data in session state.
+    OPTIMIZED: Only refreshes when forced or on explicit request.
+    """
+    if not force and "user" in st.session_state and st.session_state.user:
+        # Don't refresh unless forced - use cached data
+        return
+    
     if "user" in st.session_state and st.session_state.user:
         email = st.session_state.user.get("email")
         if email:
-            fresh_user = get_user_by_email(email)
+            # Invalidate cache first
+            invalidate_user_cache(email)
+            # Get fresh data
+            fresh_user = get_fresh_user_by_email(email)
             if fresh_user:
                 st.session_state.user = fresh_user
+                st.session_state.user_status = get_user_status(fresh_user)

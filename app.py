@@ -1,8 +1,6 @@
 """
 LEPT AI Reviewer (PH) - Main Application Entry Point
-
-AI-Powered Reviewer for the Philippine Licensure Examination for Professional Teachers
-Modern Techy Theme - Optimized for Performance
+OPTIMIZED: Single connection, cached queries, minimal reruns
 """
 
 import streamlit as st
@@ -13,24 +11,18 @@ st.set_page_config(
     page_title="LEPT AI Reviewer (PH)",
     page_icon="🎓",
     layout="wide",
-    initial_sidebar_state="collapsed",  # Collapsed sidebar - navigation in main page
+    initial_sidebar_state="collapsed",
     menu_items={
-        'About': "LEPT AI Reviewer (PH) - AI-Powered Reviewer for the Philippine Licensure Examination for Professional Teachers"
+        'About': "LEPT AI Reviewer (PH) - AI-Powered Reviewer for Philippine LEPT"
     }
 )
 
-# Import components and pages
-from components.auth import init_session_state, check_authentication, show_login_form, get_current_user, is_admin, logout_user, logout_admin, show_admin_login
-from services.usage_tracker import get_user_status
-from pages.home import render_home_page
-from pages.upload_reviewer import render_upload_page
-from pages.practice_exam import render_practice_page
-from pages.upgrade import render_upgrade_page
-from pages.admin_panel import render_admin_page
+# Import components - minimal imports at top level
+from components.auth import init_session_state, check_authentication, show_login_form, get_current_user, is_admin, logout_user, logout_admin
 from config.settings import COLORS, PLAN_FREE, PLAN_PRO, PLAN_PREMIUM, EMAIL_SHARING_WARNING
 
 
-@st.cache_data(ttl=3600)
+@st.cache_data(ttl=3600, show_spinner=False)
 def load_css_file():
     """Load and cache CSS file content."""
     css_path = Path(__file__).parent / "assets" / "style.css"
@@ -41,23 +33,18 @@ def load_css_file():
 
 
 def load_custom_css():
-    """Load custom CSS styles for modern techy theme."""
+    """Load custom CSS styles - cached CSS file + inline styles."""
     css_content = load_css_file()
-    if css_content:
-        st.markdown(f"<style>{css_content}</style>", unsafe_allow_html=True)
     
-    # Additional inline styles for the modern techy theme
-    st.markdown(f"""
-    <style>
+    # Combined CSS string (cached file + inline)
+    inline_css = f"""
     /* ========== HIDE STREAMLIT DEFAULTS ========== */
     #MainMenu {{visibility: hidden;}}
     footer {{visibility: hidden;}}
     header {{visibility: hidden;}}
     
     /* ========== HIDE SIDEBAR ========== */
-    [data-testid="stSidebar"] {{
-        display: none !important;
-    }}
+    [data-testid="stSidebar"] {{display: none !important;}}
     
     /* ========== DARK TECHY BACKGROUND ========== */
     .stApp {{
@@ -74,8 +61,7 @@ def load_custom_css():
         bottom: 0;
         background: 
             radial-gradient(ellipse at 20% 20%, rgba(99, 102, 241, 0.15) 0%, transparent 50%),
-            radial-gradient(ellipse at 80% 80%, rgba(6, 182, 212, 0.1) 0%, transparent 50%),
-            radial-gradient(ellipse at 50% 50%, rgba(139, 92, 246, 0.05) 0%, transparent 70%);
+            radial-gradient(ellipse at 80% 80%, rgba(6, 182, 212, 0.1) 0%, transparent 50%);
         pointer-events: none;
         z-index: 0;
     }}
@@ -87,30 +73,19 @@ def load_custom_css():
     }}
     
     /* ========== TYPOGRAPHY ========== */
-    h1, h2, h3, h4, h5, h6 {{
-        color: {COLORS['text']} !important;
-    }}
-    
-    p, span, label {{
-        color: {COLORS['text_muted']} !important;
-    }}
+    h1, h2, h3, h4, h5, h6 {{color: {COLORS['text']} !important;}}
+    p, span, label {{color: {COLORS['text_muted']} !important;}}
     
     /* ========== BUTTONS ========== */
     .stButton > button {{
         border-radius: 12px !important;
         font-weight: 600 !important;
-        transition: all 0.3s ease !important;
+        transition: all 0.2s ease !important;
     }}
     
     .stButton > button[data-testid="baseButton-primary"] {{
         background: linear-gradient(135deg, {COLORS['primary']} 0%, {COLORS['accent']} 100%) !important;
         border: none !important;
-        box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4) !important;
-    }}
-    
-    .stButton > button[data-testid="baseButton-primary"]:hover {{
-        transform: translateY(-2px) !important;
-        box-shadow: 0 8px 25px rgba(99, 102, 241, 0.5) !important;
     }}
     
     .stButton > button[data-testid="baseButton-secondary"] {{
@@ -128,12 +103,6 @@ def load_custom_css():
         color: {COLORS['text']} !important;
     }}
     
-    .stTextInput > div > div > input:focus,
-    .stTextArea > div > div > textarea:focus {{
-        border-color: {COLORS['primary']} !important;
-        box-shadow: 0 0 0 3px {COLORS['glow']} !important;
-    }}
-    
     .stSelectbox > div > div {{
         background: {COLORS['background_light']} !important;
         border: 1px solid {COLORS['border']} !important;
@@ -145,10 +114,6 @@ def load_custom_css():
         background: {COLORS['background_light']} !important;
         border: 2px dashed {COLORS['border']} !important;
         border-radius: 16px !important;
-    }}
-    
-    .stFileUploader > div:hover {{
-        border-color: {COLORS['primary']} !important;
     }}
     
     /* ========== TABS ========== */
@@ -170,34 +135,10 @@ def load_custom_css():
         color: white !important;
     }}
     
-    /* ========== EXPANDER ========== */
-    .streamlit-expanderHeader {{
-        background: {COLORS['background_light']} !important;
-        border-radius: 12px !important;
-        color: {COLORS['text']} !important;
-    }}
-    
-    .streamlit-expanderContent {{
-        background: {COLORS['background_light']} !important;
-        border: 1px solid {COLORS['border']} !important;
-    }}
-    
     /* ========== ALERTS ========== */
     [data-testid="stAlert"] {{
         background: {COLORS['background_light']} !important;
         border-radius: 12px !important;
-    }}
-    
-    /* ========== METRICS ========== */
-    [data-testid="stMetric"] {{
-        background: {COLORS['background_light']};
-        padding: 1rem;
-        border-radius: 12px;
-        border: 1px solid {COLORS['border']};
-    }}
-    
-    [data-testid="stMetricValue"] {{
-        color: {COLORS['primary']} !important;
     }}
     
     /* ========== FORM ========== */
@@ -208,52 +149,6 @@ def load_custom_css():
         padding: 1.5rem;
     }}
     
-    /* ========== RADIO ========== */
-    .stRadio label {{
-        background: {COLORS['background_light']} !important;
-        border: 1px solid {COLORS['border']} !important;
-        border-radius: 10px !important;
-        color: {COLORS['text']} !important;
-    }}
-    
-    /* ========== CHECKBOX ========== */
-    .stCheckbox label {{
-        color: {COLORS['text']} !important;
-    }}
-    
-    /* ========== SLIDER ========== */
-    .stSlider > div > div > div {{
-        background: linear-gradient(90deg, {COLORS['primary']} 0%, {COLORS['secondary']} 100%) !important;
-    }}
-    
-    /* ========== CUSTOM SCROLLBAR ========== */
-    ::-webkit-scrollbar {{
-        width: 8px;
-        height: 8px;
-    }}
-    
-    ::-webkit-scrollbar-track {{
-        background: {COLORS['background']};
-    }}
-    
-    ::-webkit-scrollbar-thumb {{
-        background: {COLORS['surface']};
-        border-radius: 4px;
-    }}
-    
-    ::-webkit-scrollbar-thumb:hover {{
-        background: {COLORS['primary']};
-    }}
-    
-    /* ========== NAVIGATION BAR ========== */
-    .nav-bar {{
-        display: flex;
-        gap: 0.5rem;
-        flex-wrap: wrap;
-        justify-content: center;
-        margin-bottom: 1rem;
-    }}
-    
     /* ========== MOBILE RESPONSIVE ========== */
     @media (max-width: 768px) {{
         .main .block-container {{
@@ -261,32 +156,35 @@ def load_custom_css():
             padding-right: 1rem;
         }}
     }}
-    </style>
-    """, unsafe_allow_html=True)
+    """
+    
+    st.markdown(f"<style>{css_content}{inline_css}</style>", unsafe_allow_html=True)
 
 
 def render_header_nav():
-    """Render the header with navigation on the main page."""
+    """Render the header with navigation - no DB queries."""
     user = get_current_user()
     if not user:
         return
     
-    status = get_user_status(user)
+    # Get status from session state (no DB query)
+    from services.usage_tracker import get_cached_user_status
+    status = get_cached_user_status()
+    if not status:
+        from services.usage_tracker import get_user_status
+        status = get_user_status(user)
+        st.session_state.user_status = status
     
-    plan_colors = {
-        PLAN_FREE: COLORS["text_muted"],
-        PLAN_PRO: COLORS["primary"],
-        PLAN_PREMIUM: COLORS["accent"]
-    }
-    plan_color = plan_colors.get(status["plan"], COLORS["text_muted"])
+    user_plan = status["plan"]
+    plan_color = COLORS["accent"] if user_plan == PLAN_PREMIUM else (COLORS["primary"] if user_plan == PLAN_PRO else COLORS["text_muted"])
     
-    # Header with branding and user info
+    # Header
     col1, col2, col3 = st.columns([2, 4, 2])
     
     with col1:
         st.markdown(f"""
         <div style="display: flex; align-items: center; gap: 0.75rem;">
-            <div style="font-size: 2rem; filter: drop-shadow(0 0 15px {COLORS['glow']});">🎓</div>
+            <div style="font-size: 2rem;">🎓</div>
             <div>
                 <h3 style="background: linear-gradient(135deg, {COLORS['primary']} 0%, {COLORS['secondary']} 100%);
                            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
@@ -298,48 +196,36 @@ def render_header_nav():
         """, unsafe_allow_html=True)
     
     with col2:
-        # Navigation buttons - determine number of columns
-        num_nav_items = 4  # Home, Practice, Upgrade, Admin Login
-        if status["plan"] in [PLAN_PRO, PLAN_PREMIUM]:
-            num_nav_items = 5  # Add Upload
-        if is_admin():
-            num_nav_items += 1  # Add Admin Panel
-        
+        admin_logged = is_admin()
+        num_nav_items = 6 if admin_logged else 5
         nav_cols = st.columns(num_nav_items)
         
         nav_items = [
             ("🏠", "Home", "home"),
+            ("📄", "Upload", "upload"),
             ("🧠", "Practice", "practice"),
             ("💳", "Upgrade", "upgrade"),
         ]
         
-        # Only show Upload for Pro/Premium
-        if status["plan"] in [PLAN_PRO, PLAN_PREMIUM]:
-            nav_items.insert(1, ("📄", "Upload", "upload"))
-        
-        # Add Admin Panel if already logged in as admin
-        if is_admin():
-            nav_items.append(("🛠️", "Admin Panel", "admin"))
-        
-        # Always show Admin Login button (unless already admin)
-        if not is_admin():
+        if admin_logged:
+            nav_items.append(("🛠️", "Admin", "admin"))
+        else:
             nav_items.append(("🔐", "Admin", "admin_login"))
         
         for i, (icon, label, page_key) in enumerate(nav_items):
             with nav_cols[i]:
                 is_active = st.session_state.get("current_page") == page_key
-                button_type = "primary" if is_active else "secondary"
-                if st.button(f"{icon} {label}", key=f"nav_{page_key}", use_container_width=True, type=button_type):
+                btn_type = "primary" if is_active else "secondary"
+                if st.button(f"{icon} {label}", key=f"nav_{page_key}", use_container_width=True, type=btn_type):
                     st.session_state.current_page = page_key
                     st.rerun()
     
     with col3:
-        # User info and logout
         st.markdown(f"""
         <div style="text-align: right;">
             <span style="background: {plan_color}33; color: {plan_color}; 
                          padding: 4px 12px; border-radius: 20px; font-size: 0.75rem;
-                         font-weight: 600;">{status['plan']}</span>
+                         font-weight: 600;">{user_plan}</span>
             <span style="color: {COLORS['secondary']}; font-weight: 700; margin-left: 0.5rem;">
                 {status['questions_display']} Q
             </span>
@@ -358,8 +244,8 @@ def render_header_nav():
     <hr style="border: none; height: 1px; background: linear-gradient(90deg, transparent, {COLORS['border']}, transparent); margin: 0.5rem 0 1rem 0;">
     """, unsafe_allow_html=True)
     
-    # Warning for email sharing
-    if status["plan"] == PLAN_FREE:
+    # Warning for FREE users only
+    if user_plan == PLAN_FREE:
         st.markdown(f"""
         <div style="background: rgba(245, 158, 11, 0.1); padding: 0.5rem 1rem; border-radius: 8px;
                     border-left: 3px solid {COLORS['warning']}; margin-bottom: 1rem; font-size: 0.85rem;">
@@ -370,38 +256,28 @@ def render_header_nav():
 
 
 def render_admin_login_page():
-    """Render a dedicated admin login page."""
+    """Render admin login page - form prevents reruns."""
     if is_admin():
-        # Already logged in, redirect to admin panel
         st.session_state.current_page = "admin"
         st.rerun()
         return
     
-    # Centered admin login card
     st.markdown(f"""
-    <div style="max-width: 500px; margin: 2rem auto;">
-        <div style="text-align: center; margin-bottom: 2rem;">
-            <div style="font-size: 4rem; margin-bottom: 1rem; filter: drop-shadow(0 0 20px {COLORS['glow']});">🔐</div>
-            <h1 style="background: linear-gradient(135deg, {COLORS['primary']} 0%, {COLORS['secondary']} 100%);
-                       -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-                       font-size: 2rem; margin: 0;">Admin Login</h1>
-            <p style="color: {COLORS['text_muted']}; margin-top: 0.5rem;">
-                Enter your admin password to access the Admin Panel
-            </p>
-        </div>
+    <div style="max-width: 500px; margin: 2rem auto; text-align: center;">
+        <div style="font-size: 4rem; margin-bottom: 1rem;">🔐</div>
+        <h1 style="background: linear-gradient(135deg, {COLORS['primary']} 0%, {COLORS['secondary']} 100%);
+                   -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+                   font-size: 2rem; margin: 0;">Admin Login</h1>
+        <p style="color: {COLORS['text_muted']}; margin-top: 0.5rem;">
+            Enter your admin password to access the Admin Panel
+        </p>
     </div>
     """, unsafe_allow_html=True)
     
-    # Login form in centered container
     col1, col2, col3 = st.columns([1, 2, 1])
     
     with col2:
-        st.markdown(f"""
-        <div style="background: {COLORS['surface']}; padding: 2rem; border-radius: 16px;
-                    border: 1px solid {COLORS['border']}; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
-        """, unsafe_allow_html=True)
-        
-        with st.form("admin_login_form_page"):
+        with st.form("admin_login_form_page", clear_on_submit=True):
             admin_password = st.text_input(
                 "Admin Password", 
                 type="password", 
@@ -410,7 +286,6 @@ def render_admin_login_page():
             )
             
             st.markdown("<br>", unsafe_allow_html=True)
-            
             submit = st.form_submit_button("🔑 Login as Admin", use_container_width=True, type="primary")
             
             if submit:
@@ -418,72 +293,80 @@ def render_admin_login_page():
                     correct_password = st.secrets.get("admin", {}).get("password", "")
                     if admin_password == correct_password and correct_password:
                         st.session_state.is_admin = True
-                        st.success("✅ Admin access granted! Redirecting...")
+                        st.success("✅ Admin access granted!")
                         st.session_state.current_page = "admin"
                         st.rerun()
                     else:
                         st.error("❌ Invalid admin password.")
-                except Exception as e:
+                except Exception:
                     st.error("Admin authentication not configured.")
         
-        st.markdown("</div>", unsafe_allow_html=True)
-        
-        # Back to home link
         st.markdown("<br>", unsafe_allow_html=True)
         if st.button("← Back to Home", key="back_to_home", use_container_width=True):
             st.session_state.current_page = "home"
             st.rerun()
 
 
+def render_debug_info():
+    """Render debug info (remove in production)."""
+    from database.connection import get_query_count
+    query_count = get_query_count()
+    if query_count > 0:
+        st.markdown(f"""
+        <div style="position: fixed; bottom: 10px; right: 10px; 
+                    background: rgba(0,0,0,0.8); color: white; 
+                    padding: 5px 10px; border-radius: 5px; font-size: 11px; z-index: 9999;">
+            DB Queries: {query_count}
+        </div>
+        """, unsafe_allow_html=True)
+
+
 def main():
-    """Main application entry point."""
-    # Initialize session state
+    """Main application entry point - OPTIMIZED."""
+    # Initialize session state ONCE
     init_session_state()
     
-    # Load custom CSS
+    # Load CSS ONCE (cached)
     load_custom_css()
     
-    # Check authentication
+    # Check authentication (no DB query - session state only)
     if not check_authentication():
-        # Show login form for unauthenticated users
         show_login_form()
         return
     
-    # Render header with navigation (on main page)
+    # Render header navigation
     render_header_nav()
     
-    # Get current page and render
+    # Get current page from session state
     current_page = st.session_state.get("current_page", "home")
     
-    # Get user status to check plan
-    user = get_current_user()
-    status = get_user_status(user) if user else {"plan": PLAN_FREE}
-    
-    # Page routing (with restrictions for FREE users)
+    # Page routing - LAZY IMPORTS to reduce startup time
     if current_page == "home":
+        from pages.home import render_home_page
         render_home_page()
     elif current_page == "upload":
-        # Only allow upload for Pro/Premium
-        if status["plan"] in [PLAN_PRO, PLAN_PREMIUM]:
-            render_upload_page()
-        else:
-            st.session_state.current_page = "upgrade"
-            st.rerun()
+        from pages.upload_reviewer import render_upload_page
+        render_upload_page()
     elif current_page == "practice":
+        from pages.practice_exam import render_practice_page
         render_practice_page()
     elif current_page == "upgrade":
+        from pages.upgrade import render_upgrade_page
         render_upgrade_page()
     elif current_page == "admin_login":
-        render_admin_login_page()  # Dedicated admin login page
+        render_admin_login_page()
     elif current_page == "admin":
         if is_admin():
+            from pages.admin_panel import render_admin_page
             render_admin_page()
         else:
-            # Not logged in as admin, show login page
             render_admin_login_page()
     else:
-        # Default to home
+        from pages.home import render_home_page
         render_home_page()
+    
+    # Debug info (comment out in production)
+    # render_debug_info()
 
 
 if __name__ == "__main__":

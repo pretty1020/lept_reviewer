@@ -1,32 +1,36 @@
 """
 LEPT AI Reviewer - Authentication Components
-Modern Techy Theme
+OPTIMIZED: Session state based, minimal reruns
 """
 
 import streamlit as st
 
 from config.settings import EMAIL_SHARING_WARNING, COLORS
-from services.usage_tracker import get_or_create_user, get_user_status, refresh_user_session
+from services.usage_tracker import get_or_create_user, get_user_status, get_cached_user_status
 from utils.validators import validate_email
 
 
 def init_session_state():
-    """Initialize session state variables."""
-    if "user" not in st.session_state:
-        st.session_state.user = None
+    """Initialize session state variables - called once per session."""
+    defaults = {
+        "user": None,
+        "user_status": None,
+        "is_admin": False,
+        "current_page": "home",
+        "login_attempted": False,
+        "generated_questions": None,
+        "quiz_answers": {},
+        "quiz_submitted": False,
+        "selected_docs": [],
+    }
     
-    if "is_admin" not in st.session_state:
-        st.session_state.is_admin = False
-    
-    if "current_page" not in st.session_state:
-        st.session_state.current_page = "home"
-    
-    if "login_attempted" not in st.session_state:
-        st.session_state.login_attempted = False
+    for key, default_value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = default_value
 
 
 def check_authentication() -> bool:
-    """Check if user is authenticated."""
+    """Check if user is authenticated - no DB query."""
     init_session_state()
     return st.session_state.user is not None
 
@@ -34,11 +38,10 @@ def check_authentication() -> bool:
 def show_login_form():
     """Display the login/registration form with modern techy theme."""
     
-    # Hero Section
+    # Hero Section - static HTML, no DB queries
     st.markdown(f"""
     <div style="text-align: center; padding: 3rem 1rem; margin-bottom: 2rem;">
-        <div style="font-size: 4rem; margin-bottom: 1rem; 
-                    text-shadow: 0 0 30px {COLORS['glow']}, 0 0 60px rgba(6, 182, 212, 0.3);">
+        <div style="font-size: 4rem; margin-bottom: 1rem;">
             🎓
         </div>
         <h1 style="font-size: 2.8rem; font-weight: 700; margin: 0;
@@ -66,8 +69,7 @@ def show_login_form():
         st.markdown(f"""
         <div style="background: rgba(30, 41, 59, 0.8); backdrop-filter: blur(20px);
                     padding: 2rem; border-radius: 20px; 
-                    border: 1px solid {COLORS['border']};
-                    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), 0 0 40px {COLORS['glow']};">
+                    border: 1px solid {COLORS['border']};">
             <h3 style="color: {COLORS['text']}; margin: 0 0 0.5rem 0; text-align: center;">
                 🚀 Get Started
             </h3>
@@ -77,7 +79,8 @@ def show_login_form():
         </div>
         """, unsafe_allow_html=True)
         
-        with st.form("login_form"):
+        # Use form to prevent reruns on input change
+        with st.form("login_form", clear_on_submit=False):
             email = st.text_input(
                 "Email Address",
                 placeholder="your.email@example.com",
@@ -107,13 +110,14 @@ def show_login_form():
                 
                 if user:
                     st.session_state.user = user
+                    st.session_state.user_status = get_user_status(user)
                     st.session_state.login_attempted = True
                     st.success(message)
                     st.rerun()
                 else:
                     st.error(message)
     
-    # Features section
+    # Features section - static HTML only
     st.markdown("<br><br>", unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns(3)
@@ -122,8 +126,7 @@ def show_login_form():
         st.markdown(f"""
         <div style="text-align: center; padding: 1.5rem; background: rgba(30, 41, 59, 0.6);
                     border-radius: 16px; border: 1px solid {COLORS['border']};">
-            <div style="font-size: 2.5rem; margin-bottom: 0.5rem;
-                        filter: drop-shadow(0 0 10px {COLORS['primary']});">🎯</div>
+            <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🎯</div>
             <h4 style="color: {COLORS['text']}; margin: 0 0 0.5rem 0;">AI-Powered</h4>
             <p style="color: {COLORS['text_muted']}; font-size: 0.9rem; margin: 0;">
                 Smart questions generated from your own reviewers
@@ -135,8 +138,7 @@ def show_login_form():
         st.markdown(f"""
         <div style="text-align: center; padding: 1.5rem; background: rgba(30, 41, 59, 0.6);
                     border-radius: 16px; border: 1px solid {COLORS['border']};">
-            <div style="font-size: 2.5rem; margin-bottom: 0.5rem;
-                        filter: drop-shadow(0 0 10px {COLORS['secondary']});">📄</div>
+            <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">📄</div>
             <h4 style="color: {COLORS['text']}; margin: 0 0 0.5rem 0;">Your Materials</h4>
             <p style="color: {COLORS['text_muted']}; font-size: 0.9rem; margin: 0;">
                 Upload PDF and DOCX for personalized practice
@@ -148,8 +150,7 @@ def show_login_form():
         st.markdown(f"""
         <div style="text-align: center; padding: 1.5rem; background: rgba(30, 41, 59, 0.6);
                     border-radius: 16px; border: 1px solid {COLORS['border']};">
-            <div style="font-size: 2.5rem; margin-bottom: 0.5rem;
-                        filter: drop-shadow(0 0 10px {COLORS['accent']});">📊</div>
+            <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">📊</div>
             <h4 style="color: {COLORS['text']}; margin: 0 0 0.5rem 0;">Track Progress</h4>
             <p style="color: {COLORS['text_muted']}; font-size: 0.9rem; margin: 0;">
                 Monitor usage and upgrade for unlimited access
@@ -159,10 +160,10 @@ def show_login_form():
 
 
 def show_admin_login():
-    """Display admin login form."""
-    st.markdown(f"### 🔐 Admin Access", unsafe_allow_html=True)
+    """Display admin login form - uses form to prevent reruns."""
+    st.markdown("### 🔐 Admin Access", unsafe_allow_html=True)
     
-    with st.form("admin_login_form"):
+    with st.form("admin_login_form", clear_on_submit=True):
         password = st.text_input("Admin Password", type="password")
         submit = st.form_submit_button("Login as Admin")
         
@@ -175,14 +176,18 @@ def show_admin_login():
                     st.rerun()
                 else:
                     st.error("Invalid admin password.")
-            except Exception as e:
+            except Exception:
                 st.error("Admin authentication not configured.")
 
 
 def logout_user():
-    """Log out the current user."""
-    st.session_state.user = None
-    st.session_state.is_admin = False
+    """Log out the current user - clears all session state."""
+    keys_to_clear = ["user", "user_status", "is_admin", "generated_questions", 
+                     "quiz_answers", "quiz_submitted", "selected_docs"]
+    for key in keys_to_clear:
+        if key in st.session_state:
+            st.session_state[key] = None
+    
     st.session_state.current_page = "home"
     st.rerun()
 
@@ -194,11 +199,10 @@ def logout_admin():
 
 
 def get_current_user() -> dict:
-    """Get the current user from session state."""
-    refresh_user_session()
+    """Get the current user from session state - no DB query."""
     return st.session_state.get("user", None)
 
 
 def is_admin() -> bool:
-    """Check if current session has admin access."""
+    """Check if current session has admin access - no DB query."""
     return st.session_state.get("is_admin", False)
