@@ -131,6 +131,10 @@ def render_users_tab():
 def render_user_actions(user, email, ip, plan, plan_color, questions, is_blocked, expiry):
     """Render user management actions - separated for cleaner code."""
     from database.queries import block_user, adjust_user_quota, log_admin_action, delete_user, change_user_plan
+    import hashlib
+    
+    # Create unique key suffix from email to avoid duplicates
+    key_suffix = hashlib.md5(email.encode()).hexdigest()[:8]
     
     col1, col2 = st.columns(2)
     
@@ -146,10 +150,10 @@ def render_user_actions(user, email, ip, plan, plan_color, questions, is_blocked
         st.markdown("**Actions:**")
         
         # Change Plan - use form to prevent reruns
-        with st.form(f"plan_form_{email}", clear_on_submit=False):
+        with st.form(f"plan_form_{key_suffix}", clear_on_submit=False):
             plan_options = [PLAN_FREE, PLAN_PRO, PLAN_PREMIUM]
             current_index = plan_options.index(plan) if plan in plan_options else 0
-            new_plan = st.selectbox("Change Plan:", options=plan_options, index=current_index, key=f"plan_sel_{email}")
+            new_plan = st.selectbox("Change Plan:", options=plan_options, index=current_index, key=f"plan_sel_{key_suffix}")
             
             if st.form_submit_button("💳 Update Plan"):
                 change_user_plan(email, new_plan)
@@ -160,21 +164,21 @@ def render_user_actions(user, email, ip, plan, plan_color, questions, is_blocked
         
         # Block/Unblock
         if is_blocked:
-            if st.button(f"✅ Unblock", key=f"unblock_{email}"):
+            if st.button(f"✅ Unblock", key=f"unblock_{key_suffix}"):
                 block_user(email, False)
                 log_admin_action("admin", ACTION_USER_UNBLOCKED, f"Unblocked {email}")
                 st.session_state.admin_users_loaded = None
                 st.rerun()
         else:
-            if st.button(f"🚫 Block", key=f"block_{email}"):
+            if st.button(f"🚫 Block", key=f"block_{key_suffix}"):
                 block_user(email, True)
                 log_admin_action("admin", ACTION_USER_BLOCKED, f"Blocked {email}")
                 st.session_state.admin_users_loaded = None
                 st.rerun()
         
         # Adjust quota - use form
-        with st.form(f"quota_form_{email}", clear_on_submit=False):
-            new_quota = st.number_input("Adjust Quota:", min_value=0, max_value=10000, value=questions, key=f"quota_num_{email}")
+        with st.form(f"quota_form_{key_suffix}", clear_on_submit=False):
+            new_quota = st.number_input("Adjust Quota:", min_value=0, max_value=10000, value=questions, key=f"quota_num_{key_suffix}")
             
             if st.form_submit_button("📊 Update Quota"):
                 adjust_user_quota(email, new_quota)
@@ -185,10 +189,10 @@ def render_user_actions(user, email, ip, plan, plan_color, questions, is_blocked
         
         # Delete
         st.markdown(f"<p style='color: {COLORS['error']};'><strong>Danger Zone:</strong></p>", unsafe_allow_html=True)
-        delete_confirm = st.checkbox(f"Confirm delete", key=f"confirm_del_{email}")
+        delete_confirm = st.checkbox(f"Confirm delete", key=f"confirm_del_{key_suffix}")
         
         if delete_confirm:
-            if st.button(f"🗑️ Delete User", key=f"del_{email}", type="primary"):
+            if st.button(f"🗑️ Delete User", key=f"del_{key_suffix}", type="primary"):
                 delete_user(email)
                 log_admin_action("admin", ACTION_USER_DELETED, f"Deleted {email}")
                 st.session_state.admin_users_loaded = None
