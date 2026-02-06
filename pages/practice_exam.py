@@ -304,6 +304,7 @@ def handle_question_generation(email, user, status, is_free_user, is_premium,
         else:
             from services.ai_generator import generate_questions
             
+            # Collect document content if any documents are selected
             doc_content = ""
             if selected_docs:
                 from database.queries import get_admin_document_text
@@ -312,31 +313,21 @@ def handle_question_generation(email, user, status, is_free_user, is_premium,
                     if doc.get("source") == "admin":
                         doc_data = get_admin_document_text(doc.get("doc_id"))
                         if doc_data and doc_data.get("text"):
-                            doc_texts.append(f"--- {doc_data['filename']} ---\n{doc_data['text'][:5000]}")
+                            doc_texts.append(f"--- {doc_data['filename']} ---\n{doc_data['text'][:8000]}")
                     elif doc.get("extracted_text"):
-                        doc_texts.append(f"--- {doc.get('filename')} ---\n{doc.get('extracted_text')[:5000]}")
+                        doc_texts.append(f"--- {doc.get('filename')} ---\n{doc.get('extracted_text')[:8000]}")
                 if doc_texts:
                     doc_content = "\n\n".join(doc_texts)
             
-            combined_text = f"""
-            Generate LEPT exam questions for:
-            - Education Level: {EDUCATION_LEVELS[education_level]}
-            - Exam Component: {EXAM_COMPONENTS[exam_component]['name']}
-            - Specialization: {specialization}
-            - Difficulty: {difficulty}
-            
-            IMPORTANT: Generate ONLY {EXAM_COMPONENTS[exam_component]['name']} questions.
-            Follow the 2026 PRC LEPT competencies.
-            
-            {f"Use this content:\n\n{doc_content}" if doc_content else ""}
-            """
-            
+            # Generate questions using enhanced AI generator
+            # The AI will use LEPT competencies if document is not relevant
             questions = generate_questions(
                 exam_type=exam_component,
                 specialization=specialization,
                 difficulty=difficulty,
-                document_text=combined_text,
-                num_questions=QUESTIONS_PER_BATCH
+                document_text=doc_content,
+                num_questions=QUESTIONS_PER_BATCH,
+                education_level=education_level
             )
     
     if questions:
