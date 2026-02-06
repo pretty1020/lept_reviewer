@@ -8,9 +8,16 @@ import snowflake.connector
 from typing import Optional, List, Any, Tuple
 import time
 
-# Debug counter for query monitoring (remove in production)
-if "db_query_count" not in st.session_state:
-    st.session_state.db_query_count = 0
+
+def _increment_query_count():
+    """Safely increment the query counter."""
+    try:
+        if "db_query_count" not in st.session_state:
+            st.session_state.db_query_count = 0
+        st.session_state.db_query_count += 1
+    except Exception:
+        # Session state not available (e.g., in cached function context)
+        pass
 
 
 @st.cache_resource
@@ -72,8 +79,8 @@ def execute_query(query: str, params: tuple = None, fetch: bool = True) -> Optio
     Returns:
         List of results if fetch=True, True if successful write, None on error
     """
-    # Increment debug counter
-    st.session_state.db_query_count += 1
+    # Safely increment debug counter
+    _increment_query_count()
     
     cursor = None
     try:
@@ -152,9 +159,15 @@ def test_connection() -> Tuple[bool, str]:
 
 def get_query_count() -> int:
     """Get the number of queries executed in this session (for debugging)."""
-    return st.session_state.get("db_query_count", 0)
+    try:
+        return st.session_state.get("db_query_count", 0)
+    except Exception:
+        return 0
 
 
 def reset_query_count():
     """Reset the query counter (for debugging)."""
-    st.session_state.db_query_count = 0
+    try:
+        st.session_state.db_query_count = 0
+    except Exception:
+        pass
