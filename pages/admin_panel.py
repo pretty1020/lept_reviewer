@@ -108,7 +108,8 @@ def render_users_tab():
         st.rerun()
     
     # User list - use expanders to avoid rendering all content
-    for user in users:
+    # Use enumerate to create unique keys even for duplicate emails
+    for idx, user in enumerate(users):
         email = user.get("email", "N/A")
         ip = user.get("ip_address", "N/A")
         plan = user.get("plan_type", PLAN_FREE)
@@ -125,16 +126,15 @@ def render_users_tab():
         blocked_icon = "🚫 " if is_blocked else ""
         
         with st.expander(f"{blocked_icon}{email} - {plan}"):
-            render_user_actions(user, email, ip, plan, plan_color, questions, is_blocked, expiry)
+            render_user_actions(idx, user, email, ip, plan, plan_color, questions, is_blocked, expiry)
 
 
-def render_user_actions(user, email, ip, plan, plan_color, questions, is_blocked, expiry):
+def render_user_actions(idx, user, email, ip, plan, plan_color, questions, is_blocked, expiry):
     """Render user management actions - separated for cleaner code."""
     from database.queries import block_user, adjust_user_quota, log_admin_action, delete_user, change_user_plan
-    import hashlib
     
-    # Create unique key suffix from email to avoid duplicates
-    key_suffix = hashlib.md5(email.encode()).hexdigest()[:8]
+    # Use index for unique key suffix to handle duplicate emails
+    key_suffix = f"user_{idx}"
     
     col1, col2 = st.columns(2)
     

@@ -126,11 +126,18 @@ def block_user(email: str, blocked: bool = True):
 
 
 def get_all_users(limit: int = 100) -> List[Dict]:
-    """Get all users for admin panel - with limit."""
+    """Get all users for admin panel - with limit, deduplicated by email."""
+    # Use ROW_NUMBER to get only the latest record per email (handles duplicates)
     query = """
     SELECT EMAIL, IP_ADDRESS, PLAN_STATUS, QUESTIONS_USED_TOTAL, QUESTIONS_REMAINING, 
            PREMIUM_EXPIRY, IS_BLOCKED, CREATED_AT, UPDATED_AT
-    FROM USERS 
+    FROM (
+        SELECT EMAIL, IP_ADDRESS, PLAN_STATUS, QUESTIONS_USED_TOTAL, QUESTIONS_REMAINING, 
+               PREMIUM_EXPIRY, IS_BLOCKED, CREATED_AT, UPDATED_AT,
+               ROW_NUMBER() OVER (PARTITION BY EMAIL ORDER BY UPDATED_AT DESC) as rn
+        FROM USERS
+    ) 
+    WHERE rn = 1
     ORDER BY CREATED_AT DESC
     LIMIT %s
     """
