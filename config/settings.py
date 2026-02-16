@@ -144,6 +144,5 @@ MAX_FILE_SIZE_MB = 200  # Allow large files up to 200MB
 # Warning Messages
 EMAIL_SHARING_WARNING = "⚠️ **DO NOT share your email address. Sharing may result in access issues or blocking.**"
 
-# Snowflake Configuration
-SNOWFLAKE_SCHEMA = "APP"
-SNOWFLAKE_WAREHOUSE = "COMPUTE_WH"
+# Database Configuration
+DB_TYPE = "supabase"

@@ -514,7 +514,7 @@ def render_settings_tab():
                     border: 1px solid {COLORS['border']};">
             <h4 style="color: {COLORS['text']}; margin: 0 0 0.5rem 0;">🔌 Test Connection</h4>
             <p style="color: {COLORS['text_muted']}; margin: 0 0 1rem 0; font-size: 0.9rem;">
-                Test Snowflake connection.
+                Test database connection.
             </p>
         </div>
         """, unsafe_allow_html=True)

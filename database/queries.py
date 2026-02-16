@@ -1,6 +1,7 @@
 """
 LEPT AI Reviewer - Database Query Functions
 OPTIMIZED: Uses cached queries for reads, invalidates cache on writes
+Adapted for Supabase PostgreSQL
 """
 
 from datetime import datetime, timedelta
@@ -29,10 +30,10 @@ def get_user_by_email(email: str) -> Optional[Dict]:
 def get_fresh_user_by_email(email: str) -> Optional[Dict]:
     """Get fresh (non-cached) user data - use sparingly."""
     query = """
-    SELECT EMAIL, IP_ADDRESS, PLAN_STATUS, QUESTIONS_USED_TOTAL, QUESTIONS_REMAINING, 
-           PREMIUM_EXPIRY, IS_BLOCKED, CREATED_AT, UPDATED_AT
-    FROM USERS 
-    WHERE EMAIL = %s
+    SELECT email, ip_address, plan_status, questions_used_total, questions_remaining, 
+           premium_expiry, is_blocked, created_at, updated_at
+    FROM users 
+    WHERE email = %s
     LIMIT 1
     """
     result = execute_query(query, (email,))
@@ -55,8 +56,9 @@ def get_fresh_user_by_email(email: str) -> Optional[Dict]:
 def create_user(email: str, ip_address: str) -> Optional[str]:
     """Create a new user and return the email."""
     query = """
-    INSERT INTO USERS (EMAIL, IP_ADDRESS, PLAN_STATUS, QUESTIONS_REMAINING)
+    INSERT INTO users (email, ip_address, plan_status, questions_remaining)
     VALUES (%s, %s, %s, %s)
+    ON CONFLICT (email) DO NOTHING
     """
     result = execute_write(query, (email, ip_address, PLAN_FREE, FREE_QUESTION_LIMIT))
     
@@ -71,9 +73,9 @@ def create_user(email: str, ip_address: str) -> Optional[str]:
 def update_user_ip(email: str, ip_address: str):
     """Update user's IP address and log to history."""
     query = """
-    UPDATE USERS 
-    SET IP_ADDRESS = %s, UPDATED_AT = CURRENT_TIMESTAMP()
-    WHERE EMAIL = %s
+    UPDATE users 
+    SET ip_address = %s, updated_at = NOW()
+    WHERE email = %s
     """
     result = execute_write(query, (ip_address, email))
     if result:
@@ -87,9 +89,9 @@ def update_user_plan(email: str, plan_type: str, questions_remaining: int = None
         premium_expiry = datetime.now() + timedelta(days=PREMIUM_DURATION_DAYS)
     
     query = """
-    UPDATE USERS 
-    SET PLAN_STATUS = %s, QUESTIONS_REMAINING = %s, PREMIUM_EXPIRY = %s, UPDATED_AT = CURRENT_TIMESTAMP()
-    WHERE EMAIL = %s
+    UPDATE users 
+    SET plan_status = %s, questions_remaining = %s, premium_expiry = %s, updated_at = NOW()
+    WHERE email = %s
     """
     result = execute_write(query, (plan_type, questions_remaining, premium_expiry, email))
     if result:
@@ -100,11 +102,11 @@ def update_user_plan(email: str, plan_type: str, questions_remaining: int = None
 def decrement_user_questions(email: str, count: int = 1) -> bool:
     """Decrement a user's remaining questions and increment total used."""
     query = """
-    UPDATE USERS 
-    SET QUESTIONS_REMAINING = QUESTIONS_REMAINING - %s,
-        QUESTIONS_USED_TOTAL = QUESTIONS_USED_TOTAL + %s,
-        UPDATED_AT = CURRENT_TIMESTAMP()
-    WHERE EMAIL = %s AND QUESTIONS_REMAINING >= %s
+    UPDATE users 
+    SET questions_remaining = questions_remaining - %s,
+        questions_used_total = questions_used_total + %s,
+        updated_at = NOW()
+    WHERE email = %s AND questions_remaining >= %s
     """
     result = execute_write(query, (count, count, email, count))
     if result:
@@ -115,9 +117,9 @@ def decrement_user_questions(email: str, count: int = 1) -> bool:
 def block_user(email: str, blocked: bool = True):
     """Block or unblock a user."""
     query = """
-    UPDATE USERS 
-    SET IS_BLOCKED = %s, UPDATED_AT = CURRENT_TIMESTAMP()
-    WHERE EMAIL = %s
+    UPDATE users 
+    SET is_blocked = %s, updated_at = NOW()
+    WHERE email = %s
     """
     result = execute_write(query, (blocked, email))
     if result:
@@ -127,24 +129,18 @@ def block_user(email: str, blocked: bool = True):
 
 def get_all_users(limit: int = 100) -> List[Dict]:
     """Get all users for admin panel - with limit, deduplicated by email."""
-    # Use ROW_NUMBER to get only the latest record per email (handles duplicates)
     query = """
-    SELECT EMAIL, IP_ADDRESS, PLAN_STATUS, QUESTIONS_USED_TOTAL, QUESTIONS_REMAINING, 
-           PREMIUM_EXPIRY, IS_BLOCKED, CREATED_AT, UPDATED_AT
-    FROM (
-        SELECT EMAIL, IP_ADDRESS, PLAN_STATUS, QUESTIONS_USED_TOTAL, QUESTIONS_REMAINING, 
-               PREMIUM_EXPIRY, IS_BLOCKED, CREATED_AT, UPDATED_AT,
-               ROW_NUMBER() OVER (PARTITION BY EMAIL ORDER BY UPDATED_AT DESC) as rn
-        FROM USERS
-    ) 
-    WHERE rn = 1
-    ORDER BY CREATED_AT DESC
-    LIMIT %s
+    SELECT DISTINCT ON (email) email, ip_address, plan_status, questions_used_total, questions_remaining, 
+           premium_expiry, is_blocked, created_at, updated_at
+    FROM users
+    ORDER BY email, updated_at DESC
     """
-    result = execute_query(query, (limit,))
+    result = execute_query(query)
     users = []
     if result:
-        for row in result:
+        # Sort by created_at DESC after dedup and apply limit
+        sorted_result = sorted(result, key=lambda r: r[7] or datetime.min, reverse=True)[:limit]
+        for row in sorted_result:
             users.append({
                 "email": row[0],
                 "ip_address": row[1],
@@ -162,9 +158,9 @@ def get_all_users(limit: int = 100) -> List[Dict]:
 def adjust_user_quota(email: str, new_quota: int):
     """Manually adjust a user's question quota."""
     query = """
-    UPDATE USERS 
-    SET QUESTIONS_REMAINING = %s, UPDATED_AT = CURRENT_TIMESTAMP()
-    WHERE EMAIL = %s
+    UPDATE users 
+    SET questions_remaining = %s, updated_at = NOW()
+    WHERE email = %s
     """
     result = execute_write(query, (new_quota, email))
     if result:
@@ -174,12 +170,12 @@ def adjust_user_quota(email: str, new_quota: int):
 
 def delete_user(email: str) -> bool:
     """Delete a user and all related records."""
-    execute_write("DELETE FROM USER_IP_HISTORY WHERE EMAIL = %s", (email,))
-    execute_write("DELETE FROM USAGE_LOGS WHERE EMAIL = %s", (email,))
-    execute_write("DELETE FROM USER_DOCUMENTS WHERE EMAIL = %s", (email,))
-    execute_write("DELETE FROM PAYMENTS WHERE EMAIL = %s", (email,))
+    execute_write("DELETE FROM user_ip_history WHERE email = %s", (email,))
+    execute_write("DELETE FROM usage_logs WHERE email = %s", (email,))
+    execute_write("DELETE FROM user_documents WHERE email = %s", (email,))
+    execute_write("DELETE FROM payments WHERE email = %s", (email,))
     
-    query = "DELETE FROM USERS WHERE EMAIL = %s"
+    query = "DELETE FROM users WHERE email = %s"
     result = execute_write(query, (email,))
     if result:
         invalidate_user_cache(email)
@@ -204,9 +200,9 @@ def change_user_plan(email: str, new_plan: str, questions_remaining: int = None)
         premium_expiry = datetime.now() + timedelta(days=PREMIUM_DURATION_DAYS)
     
     query = """
-    UPDATE USERS 
-    SET PLAN_STATUS = %s, QUESTIONS_REMAINING = %s, PREMIUM_EXPIRY = %s, UPDATED_AT = CURRENT_TIMESTAMP()
-    WHERE EMAIL = %s
+    UPDATE users 
+    SET plan_status = %s, questions_remaining = %s, premium_expiry = %s, updated_at = NOW()
+    WHERE email = %s
     """
     result = execute_write(query, (new_plan, questions_remaining, premium_expiry, email))
     if result:
@@ -216,7 +212,7 @@ def change_user_plan(email: str, new_plan: str, questions_remaining: int = None)
 
 def check_premium_expiry(email: str) -> bool:
     """Check if premium has expired and revert to free if needed."""
-    user = get_fresh_user_by_email(email)  # Need fresh data for expiry check
+    user = get_fresh_user_by_email(email)
     if user and user["plan_type"] == PLAN_PREMIUM:
         if user["premium_expiry"] and user["premium_expiry"] < datetime.now():
             update_user_plan(email, PLAN_FREE, 0, None)
@@ -228,39 +224,39 @@ def check_premium_expiry(email: str) -> bool:
 
 def log_ip_history(email: str, ip_address: str):
     """Log IP address in user history."""
-    check_query = "SELECT ID FROM USER_IP_HISTORY WHERE EMAIL = %s AND IP_ADDRESS = %s LIMIT 1"
+    check_query = "SELECT id FROM user_ip_history WHERE email = %s AND ip_address = %s LIMIT 1"
     existing = execute_query(check_query, (email, ip_address))
     
     if existing and len(existing) > 0:
         update_query = """
-        UPDATE USER_IP_HISTORY SET LAST_SEEN = CURRENT_TIMESTAMP() 
-        WHERE EMAIL = %s AND IP_ADDRESS = %s
+        UPDATE user_ip_history SET last_seen = NOW() 
+        WHERE email = %s AND ip_address = %s
         """
         execute_write(update_query, (email, ip_address))
     else:
-        insert_query = "INSERT INTO USER_IP_HISTORY (EMAIL, IP_ADDRESS) VALUES (%s, %s)"
+        insert_query = "INSERT INTO user_ip_history (email, ip_address) VALUES (%s, %s)"
         execute_write(insert_query, (email, ip_address))
 
 
 def log_ip_usage(ip_address: str):
     """Log or update IP usage."""
-    check_query = "SELECT IP_ADDRESS FROM IP_USAGE WHERE IP_ADDRESS = %s LIMIT 1"
+    check_query = "SELECT ip_address FROM ip_usage WHERE ip_address = %s LIMIT 1"
     existing = execute_query(check_query, (ip_address,))
     
     if existing and len(existing) > 0:
-        update_query = "UPDATE IP_USAGE SET LAST_SEEN = CURRENT_TIMESTAMP() WHERE IP_ADDRESS = %s"
+        update_query = "UPDATE ip_usage SET last_seen = NOW() WHERE ip_address = %s"
         execute_write(update_query, (ip_address,))
     else:
-        insert_query = "INSERT INTO IP_USAGE (IP_ADDRESS) VALUES (%s)"
+        insert_query = "INSERT INTO ip_usage (ip_address) VALUES (%s)"
         execute_write(insert_query, (ip_address,))
 
 
 def increment_ip_usage(ip_address: str, count: int = 1):
     """Increment questions used by IP."""
     query = """
-    UPDATE IP_USAGE 
-    SET QUESTIONS_USED_TOTAL = QUESTIONS_USED_TOTAL + %s, LAST_SEEN = CURRENT_TIMESTAMP()
-    WHERE IP_ADDRESS = %s
+    UPDATE ip_usage 
+    SET questions_used_total = questions_used_total + %s, last_seen = NOW()
+    WHERE ip_address = %s
     """
     execute_write(query, (count, ip_address))
 
@@ -276,7 +272,7 @@ def log_usage(email: str, ip_address: str, questions_generated: int,
               source_type: str = None, category: str = None, difficulty: str = None, notes: str = None):
     """Log a usage event."""
     query = """
-    INSERT INTO USAGE_LOGS (EMAIL, IP_ADDRESS, QUESTIONS_GENERATED, SOURCE_TYPE, CATEGORY, DIFFICULTY, NOTES)
+    INSERT INTO usage_logs (email, ip_address, questions_generated, source_type, category, difficulty, notes)
     VALUES (%s, %s, %s, %s, %s, %s, %s)
     """
     return execute_write(query, (email, ip_address, questions_generated, source_type, category, difficulty, notes))
@@ -285,10 +281,10 @@ def log_usage(email: str, ip_address: str, questions_generated: int,
 def get_user_logs(email: str, limit: int = 20) -> List[Dict]:
     """Get usage logs for a specific user - limited."""
     query = """
-    SELECT EVENT_ID, EMAIL, IP_ADDRESS, EVENT_TIME, QUESTIONS_GENERATED, SOURCE_TYPE, CATEGORY, DIFFICULTY, NOTES
-    FROM USAGE_LOGS 
-    WHERE EMAIL = %s
-    ORDER BY EVENT_TIME DESC
+    SELECT event_id, email, ip_address, event_time, questions_generated, source_type, category, difficulty, notes
+    FROM usage_logs 
+    WHERE email = %s
+    ORDER BY event_time DESC
     LIMIT %s
     """
     result = execute_query(query, (email, limit))
@@ -312,9 +308,9 @@ def get_user_logs(email: str, limit: int = 20) -> List[Dict]:
 def get_all_logs(limit: int = 50) -> List[Dict]:
     """Get all usage logs for admin panel - limited."""
     query = """
-    SELECT EVENT_ID, EMAIL, IP_ADDRESS, EVENT_TIME, QUESTIONS_GENERATED, SOURCE_TYPE, CATEGORY, DIFFICULTY, NOTES
-    FROM USAGE_LOGS
-    ORDER BY EVENT_TIME DESC
+    SELECT event_id, email, ip_address, event_time, questions_generated, source_type, category, difficulty, notes
+    FROM usage_logs
+    ORDER BY event_time DESC
     LIMIT %s
     """
     result = execute_query(query, (limit,))
@@ -340,27 +336,17 @@ def get_all_logs(limit: int = 50) -> List[Dict]:
 def save_user_document(email: str, filename: str, file_type: str, storage_path: str, 
                        text_hash: str = None, extracted_text: str = None) -> Optional[int]:
     """Save a user-uploaded document with extracted text for AI use."""
-    result = False
-    
-    # Try with EXTRACTED_TEXT column first (if column exists in table)
-    if extracted_text:
-        query_with_text = """
-        INSERT INTO USER_DOCUMENTS (EMAIL, FILE_NAME, FILE_TYPE, STORAGE_PATH, TEXT_HASH, EXTRACTED_TEXT)
-        VALUES (%s, %s, %s, %s, %s, %s)
-        """
-        result = execute_write(query_with_text, (email, filename, file_type, storage_path, text_hash, extracted_text))
-    
-    # Fallback: try without EXTRACTED_TEXT column
-    if not result:
-        query_basic = """
-        INSERT INTO USER_DOCUMENTS (EMAIL, FILE_NAME, FILE_TYPE, STORAGE_PATH, TEXT_HASH)
-        VALUES (%s, %s, %s, %s, %s)
-        """
-        result = execute_write(query_basic, (email, filename, file_type, storage_path, text_hash))
+    query = """
+    INSERT INTO user_documents (email, file_name, file_type, storage_path, text_hash, extracted_text)
+    VALUES (%s, %s, %s, %s, %s, %s)
+    RETURNING doc_id
+    """
+    result = execute_query(query, (email, filename, file_type, storage_path, text_hash, extracted_text), fetch=False)
     
     if result:
         invalidate_user_docs_cache(email)
-        id_query = "SELECT MAX(DOC_ID) FROM USER_DOCUMENTS WHERE EMAIL = %s AND FILE_NAME = %s LIMIT 1"
+        # Get the new doc_id
+        id_query = "SELECT MAX(doc_id) FROM user_documents WHERE email = %s AND file_name = %s"
         id_result = execute_query(id_query, (email, filename))
         if id_result and id_result[0]:
             return id_result[0][0]
@@ -375,8 +361,8 @@ def get_user_documents(email: str) -> List[Dict]:
 def delete_user_document(doc_id: int, email: str) -> bool:
     """Soft delete a user's document."""
     query = """
-    UPDATE USER_DOCUMENTS SET IS_DELETED = TRUE
-    WHERE DOC_ID = %s AND EMAIL = %s
+    UPDATE user_documents SET is_deleted = TRUE
+    WHERE doc_id = %s AND email = %s
     """
     result = execute_write(query, (doc_id, email))
     if result:
@@ -396,15 +382,15 @@ def save_admin_document(filename: str, file_type: str, storage_path: str,
     file_content_b64 = base64.b64encode(file_content).decode('utf-8') if file_content else None
     
     query = """
-    INSERT INTO ADMIN_DOCUMENTS (FILE_NAME, FILE_TYPE, STORAGE_PATH, IS_DOWNLOADABLE, 
-                                 UPLOADED_BY, TEXT_HASH, FILE_CONTENT, EXTRACTED_TEXT, CATEGORY)
+    INSERT INTO admin_documents (file_name, file_type, storage_path, is_downloadable, 
+                                 uploaded_by, text_hash, file_content, extracted_text, category)
     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
     """
     result = execute_write(query, (filename, file_type, storage_path, is_downloadable, 
                                    uploaded_by, text_hash, file_content_b64, extracted_text, category))
     if result:
         invalidate_admin_docs_cache()
-        id_query = "SELECT MAX(ADMIN_DOC_ID) FROM ADMIN_DOCUMENTS WHERE FILE_NAME = %s LIMIT 1"
+        id_query = "SELECT MAX(admin_doc_id) FROM admin_documents WHERE file_name = %s"
         id_result = execute_query(id_query, (filename,))
         if id_result and id_result[0]:
             return id_result[0][0]
@@ -421,9 +407,9 @@ def get_admin_document_content(doc_id: int) -> Optional[bytes]:
     import base64
     
     query = """
-    SELECT FILE_CONTENT, FILE_NAME, FILE_TYPE
-    FROM ADMIN_DOCUMENTS 
-    WHERE ADMIN_DOC_ID = %s AND IS_DELETED = FALSE
+    SELECT file_content, file_name, file_type
+    FROM admin_documents 
+    WHERE admin_doc_id = %s AND is_deleted = FALSE
     LIMIT 1
     """
     result = execute_query(query, (doc_id,))
@@ -442,9 +428,9 @@ def get_admin_document_content(doc_id: int) -> Optional[bytes]:
 def get_admin_document_text(doc_id: int) -> Optional[str]:
     """Get the extracted text from an admin document."""
     query = """
-    SELECT EXTRACTED_TEXT, FILE_NAME
-    FROM ADMIN_DOCUMENTS 
-    WHERE ADMIN_DOC_ID = %s AND IS_DELETED = FALSE
+    SELECT extracted_text, file_name
+    FROM admin_documents 
+    WHERE admin_doc_id = %s AND is_deleted = FALSE
     LIMIT 1
     """
     result = execute_query(query, (doc_id,))
@@ -456,9 +442,9 @@ def get_admin_document_text(doc_id: int) -> Optional[str]:
 def update_admin_document_downloadable(doc_id: int, is_downloadable: bool):
     """Update the downloadable status of an admin document."""
     query = """
-    UPDATE ADMIN_DOCUMENTS 
-    SET IS_DOWNLOADABLE = %s
-    WHERE ADMIN_DOC_ID = %s
+    UPDATE admin_documents 
+    SET is_downloadable = %s
+    WHERE admin_doc_id = %s
     """
     result = execute_write(query, (is_downloadable, doc_id))
     if result:
@@ -469,8 +455,8 @@ def update_admin_document_downloadable(doc_id: int, is_downloadable: bool):
 def delete_admin_document(doc_id: int) -> bool:
     """Soft delete an admin document."""
     query = """
-    UPDATE ADMIN_DOCUMENTS SET IS_DELETED = TRUE
-    WHERE ADMIN_DOC_ID = %s
+    UPDATE admin_documents SET is_deleted = TRUE
+    WHERE admin_doc_id = %s
     """
     result = execute_write(query, (doc_id,))
     if result:
@@ -484,13 +470,13 @@ def create_payment(email: str, full_name: str, plan_requested: str,
                    gcash_ref: str = None, receipt_storage_path: str = None) -> Optional[int]:
     """Create a new payment request."""
     query = """
-    INSERT INTO PAYMENTS (FULL_NAME, EMAIL, GCASH_REF, PLAN_REQUESTED, RECEIPT_STORAGE_PATH, STATUS)
+    INSERT INTO payments (full_name, email, gcash_ref, plan_requested, receipt_storage_path, status)
     VALUES (%s, %s, %s, %s, %s, %s)
     """
     result = execute_write(query, (full_name, email, gcash_ref, plan_requested, 
                                    receipt_storage_path or '', PAYMENT_PENDING))
     if result:
-        id_query = "SELECT MAX(PAYMENT_ID) FROM PAYMENTS WHERE EMAIL = %s LIMIT 1"
+        id_query = "SELECT MAX(payment_id) FROM payments WHERE email = %s"
         id_result = execute_query(id_query, (email,))
         if id_result and id_result[0]:
             return id_result[0][0]
@@ -500,11 +486,11 @@ def create_payment(email: str, full_name: str, plan_requested: str,
 def get_pending_payments() -> List[Dict]:
     """Get all pending payment requests - limited."""
     query = """
-    SELECT PAYMENT_ID, FULL_NAME, EMAIL, GCASH_REF, PLAN_REQUESTED, 
-           RECEIPT_STORAGE_PATH, SUBMITTED_AT, STATUS, ADMIN_NOTES
-    FROM PAYMENTS
-    WHERE STATUS = %s
-    ORDER BY SUBMITTED_AT ASC
+    SELECT payment_id, full_name, email, gcash_ref, plan_requested, 
+           receipt_storage_path, submitted_at, status, admin_notes
+    FROM payments
+    WHERE status = %s
+    ORDER BY submitted_at ASC
     LIMIT 50
     """
     result = execute_query(query, (PAYMENT_PENDING,))
@@ -528,10 +514,10 @@ def get_pending_payments() -> List[Dict]:
 def get_all_payments(limit: int = 50) -> List[Dict]:
     """Get all payment requests for admin - limited."""
     query = """
-    SELECT PAYMENT_ID, FULL_NAME, EMAIL, GCASH_REF, PLAN_REQUESTED, 
-           RECEIPT_STORAGE_PATH, SUBMITTED_AT, STATUS, ADMIN_NOTES, APPROVED_AT, APPROVED_BY
-    FROM PAYMENTS
-    ORDER BY SUBMITTED_AT DESC
+    SELECT payment_id, full_name, email, gcash_ref, plan_requested, 
+           receipt_storage_path, submitted_at, status, admin_notes, approved_at, approved_by
+    FROM payments
+    ORDER BY submitted_at DESC
     LIMIT %s
     """
     result = execute_query(query, (limit,))
@@ -557,11 +543,11 @@ def get_all_payments(limit: int = 50) -> List[Dict]:
 def get_user_payments(email: str, limit: int = 10) -> List[Dict]:
     """Get all payments for a specific user - limited."""
     query = """
-    SELECT PAYMENT_ID, FULL_NAME, EMAIL, GCASH_REF, PLAN_REQUESTED, 
-           RECEIPT_STORAGE_PATH, SUBMITTED_AT, STATUS, ADMIN_NOTES
-    FROM PAYMENTS 
-    WHERE EMAIL = %s
-    ORDER BY SUBMITTED_AT DESC
+    SELECT payment_id, full_name, email, gcash_ref, plan_requested, 
+           receipt_storage_path, submitted_at, status, admin_notes
+    FROM payments 
+    WHERE email = %s
+    ORDER BY submitted_at DESC
     LIMIT %s
     """
     result = execute_query(query, (email, limit))
@@ -585,9 +571,9 @@ def get_user_payments(email: str, limit: int = 10) -> List[Dict]:
 def approve_payment(payment_id: int, admin_notes: str = None, approved_by: str = "admin"):
     """Approve a payment request."""
     query = """
-    UPDATE PAYMENTS 
-    SET STATUS = %s, ADMIN_NOTES = %s, APPROVED_AT = CURRENT_TIMESTAMP(), APPROVED_BY = %s
-    WHERE PAYMENT_ID = %s
+    UPDATE payments 
+    SET status = %s, admin_notes = %s, approved_at = NOW(), approved_by = %s
+    WHERE payment_id = %s
     """
     return execute_write(query, (PAYMENT_APPROVED, admin_notes, approved_by, payment_id))
 
@@ -595,9 +581,9 @@ def approve_payment(payment_id: int, admin_notes: str = None, approved_by: str =
 def reject_payment(payment_id: int, admin_notes: str = None, approved_by: str = "admin"):
     """Reject a payment request."""
     query = """
-    UPDATE PAYMENTS 
-    SET STATUS = %s, ADMIN_NOTES = %s, APPROVED_AT = CURRENT_TIMESTAMP(), APPROVED_BY = %s
-    WHERE PAYMENT_ID = %s
+    UPDATE payments 
+    SET status = %s, admin_notes = %s, approved_at = NOW(), approved_by = %s
+    WHERE payment_id = %s
     """
     return execute_write(query, (PAYMENT_REJECTED, admin_notes, approved_by, payment_id))
 
@@ -607,7 +593,7 @@ def reject_payment(payment_id: int, admin_notes: str = None, approved_by: str = 
 def log_admin_action(admin_user: str, action_type: str, details: str = None):
     """Log an admin action."""
     query = """
-    INSERT INTO ADMIN_ACTIONS (ADMIN_USER, ACTION_TYPE, DETAILS)
+    INSERT INTO admin_actions (admin_user, action_type, details)
     VALUES (%s, %s, %s)
     """
     return execute_write(query, (admin_user, action_type, details))
@@ -616,9 +602,9 @@ def log_admin_action(admin_user: str, action_type: str, details: str = None):
 def get_admin_actions(limit: int = 50) -> List[Dict]:
     """Get admin actions for audit log - limited."""
     query = """
-    SELECT ACTION_ID, ADMIN_USER, ACTION_TIME, ACTION_TYPE, DETAILS
-    FROM ADMIN_ACTIONS
-    ORDER BY ACTION_TIME DESC
+    SELECT action_id, admin_user, action_time, action_type, details
+    FROM admin_actions
+    ORDER BY action_time DESC
     LIMIT %s
     """
     result = execute_query(query, (limit,))

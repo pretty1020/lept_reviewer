@@ -62,7 +62,7 @@ def submit_payment_request(
     if plan_requested not in [PLAN_PRO, PLAN_PREMIUM]:
         return False, "Invalid plan selected"
     
-    # Process receipt file - store path for now (actual file storage would use Snowflake stages)
+    # Process receipt file - store path for now (actual file storage in database)
     receipt_path = ""
     if receipt_file:
         receipt_path = f"@STAGE_RECEIPTS/{email}/{receipt_file.name}"
